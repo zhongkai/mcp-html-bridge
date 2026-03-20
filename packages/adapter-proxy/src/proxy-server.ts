@@ -1,6 +1,6 @@
 // ── MCP Proxy Server: intercepts tool results and enhances with HTML ──
 import { spawn, type ChildProcess } from 'node:child_process';
-import { renderFromData } from '@mcp-html-bridge/ui-engine';
+import { renderFromDataSync } from '@mcp-html-bridge/ui-engine';
 
 /**
  * MCP Proxy that sits between a client and a target MCP server.
@@ -111,7 +111,7 @@ export class MCPProxyServer {
       }
 
       // Generate HTML
-      const html = renderFromData(data, { title: 'MCP Result' });
+      const html = renderFromDataSync(data, { title: 'MCP Result' });
 
       // Append HTML block to the response content
       msg.result.content.push({

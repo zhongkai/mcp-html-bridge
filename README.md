@@ -12,178 +12,160 @@
 
 ### Overview
 
-MCP-HTML-Bridge is a universal rendering middleware for [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) tools. Feed it any JSON data or JSON Schema, and it produces a clean, interactive HTML page — **zero runtime dependencies, zero business logic**.
+MCP-HTML-Bridge is a universal rendering middleware for [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) tools. Feed it any JSON data or JSON Schema, and it produces a clean, interactive HTML page — **zero runtime dependencies**.
 
-The core principle: **pure structural rendering**. No status badges, no price formatting, no regex-based field guessing. The renderer looks at JSON structure and maps it to HTML:
+**Two rendering modes:**
 
-| JSON Shape | HTML Output |
-|---|---|
-| Array of objects | Sortable `<table>` with auto-detected columns |
-| Flat object | Key-value pairs (`<dl>`) |
-| Nested object | Collapsible `<details>` sections |
-| Array of scalars | Bulleted `<ul>` list |
-| Primitives | Typed `<span>` (number, boolean, null) |
-| JSON Schema | Interactive form with smart widgets |
+1. **LLM-powered semantic rendering** — Send JSON to any LLM, let the model understand the data's meaning and produce the best HTML. The model decides how to render, not hardcoded patterns.
 
-All formatting decisions are the caller's responsibility — whether that's an LLM, a CLI tool, or your own code.
-
-### Features
-
-- **Universal JSON → HTML** — One renderer for any data shape
-- **Zero Business Logic** — No hardcoded patterns, no domain-specific formatting
-- **Dark Mode** — Automatic via `prefers-color-scheme`
-- **Bridge Protocol** — Bidirectional `postMessage` / `CustomEvent` for iframe embedding
-- **Self-Contained** — Each HTML file is fully standalone (no CDN, no npm, no build step)
-- **Claude-Independent** — Works with any LLM, any MCP client, or standalone
-- **CLI Tool** — Render from command line with `mcp-html-skill render`
-- **Proxy Mode** — Drop-in MCP proxy that enhances tool results with HTML
-
-### Packages
-
-| Package | Description |
-|---|---|
-| `@mcp-html-bridge/ui-engine` | Core rendering engine |
-| `@mcp-html-bridge/mcp-client` | Lightweight MCP stdio client |
-| `@mcp-html-bridge/cli` | CLI adapter (`mcp-bridge` command) |
-| `@mcp-html-bridge/proxy` | MCP proxy server |
-| `@mcp-html-bridge/claude-skill` | Claude Code integration (`/mcp-render` command) |
+2. **Structural fallback** — When no LLM is configured, maps JSON shapes to HTML mechanically (tables, key-value pairs, collapsible sections). Zero external calls.
 
 ### Quick Start
 
 ```bash
-# Install the rendering engine
-npm install @mcp-html-bridge/ui-engine
+# 1. Configure your LLM once (any OpenAI-compatible API)
+npx @mcp-html-bridge/claude-skill config \
+  --api-url http://localhost:11434/v1 \
+  --model qwen2
 
-# Or use the CLI to render JSON
-echo '[{"name":"Alice","age":30},{"name":"Bob","age":25}]' | \
-  npx @mcp-html-bridge/claude-skill render --data /dev/stdin --open
+# 2. Render — LLM config is loaded automatically
+echo '{"logo":"<svg>...</svg>","readme":"# Hello\n**world**"}' > /tmp/data.json
+npx @mcp-html-bridge/claude-skill render --data /tmp/data.json --open
+
+# Or skip LLM, use structural rendering
+npx @mcp-html-bridge/claude-skill render --data /tmp/data.json --no-llm --open
 ```
+
+### Configuration
+
+```bash
+# Set up LLM provider — saved to ~/.mcp-html-bridge/config.json
+mcp-html-skill config --api-url <url> --model <model> [--api-key <key>]
+
+# View current config
+mcp-html-skill config --show
+
+# Clear config
+mcp-html-skill config --clear
+```
+
+Config resolution priority: **CLI flags > env vars > config file > no LLM**
+
+Env vars: `MCP_HTML_LLM_API_URL`, `MCP_HTML_LLM_API_KEY`, `MCP_HTML_LLM_MODEL`
+
+**Examples:**
+
+```bash
+# Local Ollama
+mcp-html-skill config --api-url http://localhost:11434/v1 --model qwen2
+
+# DeepSeek
+mcp-html-skill config --api-url https://api.deepseek.com/v1 --api-key sk-xxx --model deepseek-chat
+
+# Baidu ERNIE
+mcp-html-skill config --api-url https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop --api-key xxx --model ernie-4.0-8k
+
+# Any OpenAI-compatible endpoint
+mcp-html-skill config --api-url https://your-api.com/v1 --api-key xxx --model your-model
+```
+
+### Features
+
+- **LLM-Driven Semantic Rendering** — The model understands what the data means and renders accordingly. No pattern matching in code.
+- **Any LLM Provider** — Anything with an OpenAI-compatible chat completions API
+- **One-Time Config** — Set `config` once, every `render` call uses it automatically
+- **Graceful Fallback** — LLM fails? Auto-degrades to structural rendering + error banner
+- **Structural Mode** — `--no-llm` for zero-dependency, zero-network rendering
+- **Dark Mode** — Automatic via `prefers-color-scheme`
+- **Self-Contained** — Each HTML file is fully standalone
+- **Bridge Protocol** — Bidirectional `postMessage` / `CustomEvent` for iframe embedding
 
 ### Usage
 
 #### As a Library
 
 ```typescript
-import { renderFromData, renderFromSchema, renderJSON } from '@mcp-html-bridge/ui-engine';
+import { renderFromData, renderFromDataSync } from '@mcp-html-bridge/ui-engine';
 
-// Full HTML document from any JSON data
-const html = renderFromData(myData, {
-  title: 'MCP Result',
+// LLM-powered semantic rendering
+const html = await renderFromData(data, {
+  title: 'Result',
+  llm: {
+    apiUrl: 'http://localhost:11434/v1',
+    model: 'qwen2',
+  },
 });
 
-// Form from JSON Schema
-const formHtml = renderFromSchema(toolSchema, {
-  toolName: 'search_products',
-  toolDescription: 'Search the catalog',
-});
-
-// Just the HTML fragment (no document wrapper)
-import { renderJSON } from '@mcp-html-bridge/ui-engine';
-const fragment = renderJSON(myData);
+// Structural rendering (sync, no network)
+const html = renderFromDataSync(data, { title: 'Result' });
 ```
 
 #### CLI
 
 ```bash
-# Render JSON data to HTML and open in browser
-mcp-html-skill render --data result.json --title "My Result" --open
+# Render with LLM (auto-loads config)
+mcp-html-skill render --data result.json --open
 
-# Render to stdout for piping
-mcp-html-skill render --data result.json --stdout
+# Override LLM for this call
+mcp-html-skill render --data result.json --api-url http://localhost:11434/v1 --model llama3 --open
 
-# Render a JSON Schema as a form
+# Force structural, no LLM
+mcp-html-skill render --data result.json --no-llm --open
+
+# Schema → interactive form
 mcp-html-skill render --schema tool-schema.json --open
 
-# Generate test output from mock datasets
-npx @mcp-html-bridge/cli test-mock -o ./output
-```
-
-#### Proxy Mode
-
-```bash
-# Start a proxy that enhances MCP tool results with HTML
-npx @mcp-html-bridge/proxy "npx -y @modelcontextprotocol/server-filesystem /tmp"
+# Stdout mode
+mcp-html-skill render --data result.json --stdout
 ```
 
 ### Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│  Any MCP Client (Claude Code, other LLMs,   │
-│  custom apps, scripts, etc.)                │
-│                                             │
-│  ┌────────────┐    ┌─────────────────────┐  │
-│  │ MCP Server │───▶│ Tool Result (JSON)  │  │
-│  └────────────┘    └──────────┬──────────┘  │
-│                               │              │
-│                ┌──────────────▼──────────┐   │
-│                │ mcp-html-bridge         │   │
-│                │ ┌──────────────────┐    │   │
-│                │ │ JSON → HTML      │    │   │
-│                │ │ (pure structural │    │   │
-│                │ │  rendering)      │    │   │
-│                │ └──────────────────┘    │   │
-│                └──────────────┬──────────┘   │
-│                               │              │
-│                /tmp/mcp-html-bridge/*.html    │
-│                               │              │
-│                        open ──┘              │
-└───────────────────────┬──────────────────────┘
-                        ▼
-                  ┌───────────┐
-                  │  Browser  │
-                  └───────────┘
+┌─────────────────────────────────────────────────┐
+│  Any MCP Client                                 │
+│                                                 │
+│  ┌────────────┐    ┌──────────────────────┐     │
+│  │ MCP Server │───▶│ Tool Result (JSON)   │     │
+│  └────────────┘    └──────────┬───────────┘     │
+│                               │                  │
+│                ┌──────────────▼──────────────┐   │
+│                │  mcp-html-bridge             │   │
+│                │                              │   │
+│                │  ~/.mcp-html-bridge/config   │   │
+│                │  ┌─ LLM configured? ──────┐  │   │
+│                │  │ YES → JSON + prompt     │  │   │
+│                │  │       → LLM API         │  │   │
+│                │  │       → semantic HTML   │  │   │
+│                │  │                        │  │   │
+│                │  │ NO  → structural render │  │   │
+│                │  │       → shape-based HTML│  │   │
+│                │  └────────────────────────┘  │   │
+│                │                              │   │
+│                │  Wrap with theme + bridge JS  │   │
+│                └──────────────┬──────────────┘   │
+│                               ▼                  │
+│                 /tmp/mcp-html-bridge/*.html       │
+└──────────────────────────────────────────────────┘
 ```
 
-### Example: Baidu Youxuan E-Commerce MCP
+### Packages
 
-[Baidu Youxuan](https://openai.baidu.com/) provides MCP tools for product search and comparison. Here's how to render its output:
-
-```bash
-# 1. Call MCP tool, save result
-cat <<'EOF' > /tmp/youxuan-result.json
-[
-  { "dimension": "商品名称", "SKU-001": "联想小新 Pro 16", "SKU-002": "RedmiBook Pro 15" },
-  { "dimension": "到手价",   "SKU-001": "¥4,699",          "SKU-002": "¥4,099" },
-  { "dimension": "处理器",   "SKU-001": "R7-8845H",        "SKU-002": "i7-13700H" },
-  { "dimension": "评分",     "SKU-001": "4.8",             "SKU-002": "4.7" }
-]
-EOF
-
-# 2. Render — no business logic, just a sortable table
-mcp-html-skill render \
-  --data /tmp/youxuan-result.json \
-  --title "笔记本参数对比" \
-  --open
-```
-
-The rendered HTML shows a sortable comparison table with the raw data — no price formatting, no status badges, no assumptions about what the values mean.
+| Package | Description |
+|---|---|
+| `@mcp-html-bridge/ui-engine` | Core engine (LLM renderer + structural fallback) |
+| `@mcp-html-bridge/mcp-client` | Lightweight MCP stdio client |
+| `@mcp-html-bridge/cli` | CLI adapter (`mcp-bridge` command) |
+| `@mcp-html-bridge/proxy` | MCP proxy server |
+| `@mcp-html-bridge/claude-skill` | Claude Code integration (`/mcp-render`) |
 
 ### Claude Code Integration
-
-If you use Claude Code, install the `/mcp-render` skill:
 
 ```bash
 npx @mcp-html-bridge/claude-skill install
 ```
 
-Then use `/mcp-render` in any Claude Code conversation to let Claude render MCP tool results as HTML pages.
-
-### Delivery Modes
-
-| Mode | Flag | Use Case |
-|---|---|---|
-| **File + Browser** | `--open` | Writes HTML, opens in browser |
-| **File only** | _(none)_ | Writes HTML, prints path |
-| **Stdout** | `--stdout` | Prints raw HTML for piping or embedding |
-
-### Development
-
-```bash
-npm install
-npm run build
-node packages/adapter-cli/dist/index.js test-mock -o ./mcp-html-output
-```
+Then use `/mcp-render` in any Claude Code conversation.
 
 ### License
 
@@ -197,148 +179,95 @@ MIT
 
 ### 概述
 
-MCP-HTML-Bridge 是一个通用的 [MCP（Model Context Protocol）](https://modelcontextprotocol.io/) GUI 包装器。输入任意 JSON 数据或 JSON Schema，输出干净的交互式 HTML 页面 — **零运行时依赖，零业务逻辑**。
+MCP-HTML-Bridge 是一个通用的 [MCP](https://modelcontextprotocol.io/) GUI 包装器。输入任意 JSON，输出交互式 HTML —— **零运行时依赖**。
 
-核心原则：**纯结构化渲染**。没有状态标签、没有价格格式化、没有基于正则的字段猜测。渲染器只看 JSON 结构，映射为 HTML：
+**两种渲染模式：**
 
-| JSON 形状 | HTML 输出 |
-|---|---|
-| 对象数组 | 可排序 `<table>`，自动识别列 |
-| 扁平对象 | 键值对 (`<dl>`) |
-| 嵌套对象 | 可折叠 `<details>` 区块 |
-| 标量数组 | `<ul>` 列表 |
-| 基础类型 | 带类型的 `<span>`（数字、布尔、null） |
-| JSON Schema | 交互式表单 |
-
-所有格式化决策由调用方负责 — 无论是 LLM、CLI 工具还是你自己的代码。
-
-### 特性
-
-- **通用 JSON → HTML** — 一个渲染器适配任意数据形状
-- **零业务逻辑** — 没有硬编码模式、没有领域特定格式化
-- **暗色模式** — 通过 `prefers-color-scheme` 自动切换
-- **Bridge 通信协议** — 双向 `postMessage` / `CustomEvent`，支持 iframe 嵌入
-- **完全自包含** — 每个 HTML 文件独立运行（无 CDN、无 npm、无构建步骤）
-- **与 Claude 无关** — 适用于任何 LLM、任何 MCP 客户端，或独立使用
-- **CLI 工具** — 命令行渲染 `mcp-html-skill render`
-- **代理模式** — 透明代理 MCP 服务器，自动增强返回结果
-
-### 包列表
-
-| 包名 | 描述 |
-|---|---|
-| `@mcp-html-bridge/ui-engine` | 核心渲染引擎 |
-| `@mcp-html-bridge/mcp-client` | 轻量级 MCP stdio 客户端 |
-| `@mcp-html-bridge/cli` | CLI 适配器 |
-| `@mcp-html-bridge/proxy` | MCP 代理服务器 |
-| `@mcp-html-bridge/claude-skill` | Claude Code 集成（`/mcp-render` 命令） |
+1. **LLM 语义渲染** — 把 JSON 发给模型，让模型理解数据含义，自己决定怎么渲染。代码里不做任何模式匹配。
+2. **结构化兜底** — 没配 LLM 时，按 JSON 形状机械映射。无网络调用。
 
 ### 快速开始
 
 ```bash
-# 安装渲染引擎
-npm install @mcp-html-bridge/ui-engine
+# 1. 配置一次 LLM（任何 OpenAI 兼容 API）
+npx @mcp-html-bridge/claude-skill config \
+  --api-url http://localhost:11434/v1 \
+  --model qwen2
 
-# 或用 CLI 渲染 JSON
-echo '[{"name":"Alice","age":30},{"name":"Bob","age":25}]' | \
-  npx @mcp-html-bridge/claude-skill render --data /dev/stdin --open
+# 2. 渲染 —— 自动读取配置
+echo '{"logo":"<svg>...</svg>","readme":"# Hello"}' > /tmp/data.json
+npx @mcp-html-bridge/claude-skill render --data /tmp/data.json --open
+
+# 跳过 LLM，纯结构化渲染
+npx @mcp-html-bridge/claude-skill render --data /tmp/data.json --no-llm --open
 ```
+
+### 配置
+
+```bash
+# 设置 LLM —— 保存到 ~/.mcp-html-bridge/config.json
+mcp-html-skill config --api-url <url> --model <model> [--api-key <key>]
+
+# 查看
+mcp-html-skill config --show
+
+# 清除
+mcp-html-skill config --clear
+```
+
+优先级：**CLI 参数 > 环境变量 > 配置文件 > 无 LLM**
+
+环境变量：`MCP_HTML_LLM_API_URL`, `MCP_HTML_LLM_API_KEY`, `MCP_HTML_LLM_MODEL`
+
+**示例：**
+
+```bash
+# 本地 Ollama
+mcp-html-skill config --api-url http://localhost:11434/v1 --model qwen2
+
+# DeepSeek
+mcp-html-skill config --api-url https://api.deepseek.com/v1 --api-key sk-xxx --model deepseek-chat
+
+# 百度文心
+mcp-html-skill config --api-url https://aip.baidubce.com/rpc/2.0/... --api-key xxx --model ernie-4.0-8k
+```
+
+### 特性
+
+- **LLM 驱动** — 模型理解数据语义，自行决定渲染方式。代码里零模式匹配。
+- **任意 LLM** — 支持任何 OpenAI 兼容 API
+- **一次配置** — `config` 设一次，`render` 自动使用
+- **优雅降级** — LLM 挂了自动退回结构化渲染 + 错误提示
+- **结构化模式** — `--no-llm` 零网络依赖渲染
+- **暗色模式** — 自动跟随系统
+- **完全自包含** — 每个 HTML 独立运行
 
 ### 作为库使用
 
 ```typescript
-import { renderFromData, renderFromSchema, renderJSON } from '@mcp-html-bridge/ui-engine';
+import { renderFromData, renderFromDataSync } from '@mcp-html-bridge/ui-engine';
 
-// 从任意 JSON 数据生成完整 HTML 文档
-const html = renderFromData(myData, { title: 'MCP 结果' });
-
-// 从 JSON Schema 生成表单
-const formHtml = renderFromSchema(toolSchema, {
-  toolName: 'search_products',
-  toolDescription: '搜索商品目录',
+// LLM 语义渲染
+const html = await renderFromData(data, {
+  title: '结果',
+  llm: { apiUrl: 'http://localhost:11434/v1', model: 'qwen2' },
 });
 
-// 仅生成 HTML 片段（不含文档包装）
-const fragment = renderJSON(myData);
+// 结构化渲染（同步，无网络）
+const html = renderFromDataSync(data, { title: '结果' });
 ```
-
-### 示例：百度优选电商 MCP
-
-[百度优选](https://openai.baidu.com/) 提供了商品检索和对比的 MCP 工具。以下演示如何渲染其输出：
-
-```bash
-# 1. 将 MCP 工具结果保存为文件
-cat <<'EOF' > /tmp/youxuan-result.json
-[
-  { "dimension": "商品名称", "SKU-001": "联想小新 Pro 16", "SKU-002": "RedmiBook Pro 15" },
-  { "dimension": "到手价",   "SKU-001": "¥4,699",          "SKU-002": "¥4,099" },
-  { "dimension": "处理器",   "SKU-001": "R7-8845H",        "SKU-002": "i7-13700H" },
-  { "dimension": "评分",     "SKU-001": "4.8",             "SKU-002": "4.7" }
-]
-EOF
-
-# 2. 渲染 — 纯结构化，原样展示数据
-mcp-html-skill render \
-  --data /tmp/youxuan-result.json \
-  --title "笔记本参数对比" \
-  --open
-```
-
-渲染出的 HTML 是一个可排序的对比表格，原样展示数据 — 没有价格格式化，没有状态标签，不对数据含义做任何假设。
-
-### Claude Code 集成
-
-如果你使用 Claude Code，可以安装 `/mcp-render` 技能：
-
-```bash
-npx @mcp-html-bridge/claude-skill install
-```
-
-然后在任意 Claude Code 对话中使用 `/mcp-render`，让 Claude 将 MCP 工具结果渲染为 HTML 页面。
 
 ### 架构
 
 ```
-┌─────────────────────────────────────────────┐
-│  任意 MCP 客户端（Claude Code、其他 LLM、     │
-│  自定义应用、脚本等）                          │
-│                                             │
-│  ┌────────────┐    ┌─────────────────────┐  │
-│  │ MCP 服务器  │───▶│ 工具返回 (JSON)     │  │
-│  └────────────┘    └──────────┬──────────┘  │
-│                               │              │
-│                ┌──────────────▼──────────┐   │
-│                │ mcp-html-bridge         │   │
-│                │ ┌──────────────────┐    │   │
-│                │ │ JSON → HTML      │    │   │
-│                │ │ (纯结构化渲染)    │    │   │
-│                │ └──────────────────┘    │   │
-│                └──────────────┬──────────┘   │
-│                               │              │
-│                /tmp/mcp-html-bridge/*.html    │
-│                               │              │
-│                        open ──┘              │
-└───────────────────────┬──────────────────────┘
-                        ▼
-                  ┌───────────┐
-                  │   浏览器   │
-                  └───────────┘
-```
-
-### 交付模式
-
-| 模式 | 参数 | 场景 |
-|---|---|---|
-| **文件 + 浏览器** | `--open` | 写入 HTML，自动打开浏览器 |
-| **仅文件** | 无参数 | 写入 HTML，输出路径 |
-| **标准输出** | `--stdout` | 输出原始 HTML，用于管道传输或嵌入 |
-
-### 开发
-
-```bash
-npm install
-npm run build
-node packages/adapter-cli/dist/index.js test-mock -o ./mcp-html-output
+JSON 数据
+  │
+  ├─ 配置了 LLM → JSON + prompt → 模型 → 语义 HTML
+  │
+  └─ 没配 LLM   → JSON 形状 → 结构化 HTML
+  │
+  ▼
+theme CSS + bridge JS 包装 → 自包含 HTML 文件
 ```
 
 ### 许可证

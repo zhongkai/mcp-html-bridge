@@ -1,10 +1,14 @@
 /**
  * Render MCP tool schema or data as a self-contained HTML page.
+ *
+ * LLM config resolution order:
+ *   CLI flags > env vars > ~/.mcp-html-bridge/config.json > no LLM (structural)
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
-import { renderFromSchema, renderFromData } from '@mcp-html-bridge/ui-engine';
+import { renderFromSchema, renderFromData, renderFromDataSync } from '@mcp-html-bridge/ui-engine';
+import { resolveLLMConfig } from './config.js';
 
 interface RenderOptions {
   schema?: string;
@@ -18,6 +22,10 @@ interface RenderOptions {
   output?: string;
   open?: boolean;
   stdout?: boolean;
+  apiUrl?: string;
+  apiKey?: string;
+  model?: string;
+  llm?: boolean; // --no-llm sets this to false
 }
 
 function loadJSON(options: RenderOptions): { json: unknown; detectedMode: 'schema' | 'data' } {
@@ -40,7 +48,6 @@ function loadJSON(options: RenderOptions): { json: unknown; detectedMode: 'schem
     return { json: parsed, detectedMode: isSchema ? 'schema' : 'data' };
   }
 
-  // Try reading from stdin if piped
   try {
     raw = readFileSync('/dev/stdin', 'utf-8');
     if (raw.trim()) {
@@ -50,38 +57,14 @@ function loadJSON(options: RenderOptions): { json: unknown; detectedMode: 'schem
       return { json: parsed, detectedMode: isSchema ? 'schema' : 'data' };
     }
   } catch {
-    // Not piped, ignore
+    // Not piped
   }
 
-  console.error('  Error: No input provided.');
-  console.error('  Use --schema <file>, --data <file>, --json <string>, or pipe via stdin.');
+  console.error('Error: No input. Use --schema, --data, --json, or pipe via stdin.');
   process.exit(1);
 }
 
-function buildHTML(json: unknown, mode: string, options: RenderOptions): string {
-  if (mode === 'schema') {
-    return renderFromSchema(json as Record<string, unknown>, {
-      title: options.title ?? options.toolName ?? 'MCP Tool Input',
-      toolName: options.toolName,
-      toolDescription: options.toolDesc,
-      debug: options.debug ?? true,
-    });
-  }
-
-  return renderFromData(json, {
-    title: options.title ?? options.toolName ?? 'MCP Tool Result',
-    toolName: options.toolName,
-    toolDescription: options.toolDesc,
-    debug: options.debug,
-  });
-}
-
-export function render(options: RenderOptions): void {
-  const { json, detectedMode } = loadJSON(options);
-  const mode = options.mode ?? detectedMode;
-  const html = buildHTML(json, mode, options);
-
-  // --stdout: print raw HTML to stdout (for embedding in response streams)
+function writeAndOpen(html: string, options: RenderOptions): void {
   if (options.stdout) {
     process.stdout.write(html);
     return;
@@ -103,7 +86,53 @@ export function render(options: RenderOptions): void {
       const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
       execSync(`${cmd} "${outPath}"`, { stdio: 'ignore' });
     } catch {
-      // Silently fail if can't open browser
+      // Can't open browser
     }
+  }
+}
+
+export async function render(options: RenderOptions): Promise<void> {
+  const { json, detectedMode } = loadJSON(options);
+  const mode = options.mode ?? detectedMode;
+
+  if (mode === 'schema') {
+    const html = renderFromSchema(json as Record<string, unknown>, {
+      title: options.title ?? options.toolName ?? 'MCP Tool Input',
+      toolName: options.toolName,
+      toolDescription: options.toolDesc,
+      debug: options.debug ?? true,
+    });
+    writeAndOpen(html, options);
+    return;
+  }
+
+  // Resolve LLM config (CLI flags > env vars > config file)
+  // --no-llm forces structural rendering
+  const llm = options.llm === false
+    ? undefined
+    : resolveLLMConfig({
+        apiUrl: options.apiUrl,
+        apiKey: options.apiKey,
+        model: options.model,
+      });
+
+  if (llm) {
+    console.error(`  LLM: ${llm.model} @ ${llm.apiUrl}`);
+    const html = await renderFromData(json, {
+      title: options.title ?? options.toolName ?? 'MCP Tool Result',
+      toolName: options.toolName,
+      toolDescription: options.toolDesc,
+      debug: options.debug,
+      llm,
+    });
+    writeAndOpen(html, options);
+  } else {
+    const html = renderFromDataSync(json, {
+      title: options.title ?? options.toolName ?? 'MCP Tool Result',
+      toolName: options.toolName,
+      toolDescription: options.toolDesc,
+      debug: options.debug,
+    });
+    writeAndOpen(html, options);
   }
 }

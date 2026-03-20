@@ -2,32 +2,49 @@
  * Universal JSON → HTML renderer.
  *
  * No hardcoded business logic. No status badges, no price formatting,
- * no regex-based field type guessing. Just clean structural rendering:
+ * no regex-based field type guessing. Just clean structural rendering
+ * that handles any JSON shape gracefully:
  *
- *   Array<Object>  → sortable <table>
+ *   Array<Object>  → sortable <table> (union of all keys)
  *   Object         → <dl> key-value pairs (recursive for nesting)
- *   Array<scalar>  → <ul> list
- *   string         → text
+ *   Array<mixed>   → <ul> list with recursive items
+ *   string         → text (auto-links URLs)
  *   number         → number
  *   boolean        → true/false
  *   null           → placeholder
+ *   empty          → explicit empty indicator
  *
  * All formatting decisions are the caller's responsibility (LLM or user).
  */
 import { escapeHtml } from './html-builder.js';
 
+// ── Constants ──
+
+const MAX_DEPTH = 30;
+const MAX_TABLE_ROWS = 500;
+const MAX_LIST_ITEMS = 200;
+const URL_REGEX = /^https?:\/\/[^\s<>"{}|\\^`[\]]+$/;
+const IMAGE_EXT_REGEX = /\.(png|jpe?g|gif|webp|svg|ico|bmp)(\?[^\s]*)?$/i;
+
 // ── Structural detection ──
 
 function isArrayOfObjects(data: unknown): data is Record<string, unknown>[] {
-  return Array.isArray(data) && data.length > 0 &&
-    data.every(item => item !== null && typeof item === 'object' && !Array.isArray(item));
+  if (!Array.isArray(data) || data.length === 0) return false;
+  // At least 80% must be non-null objects (tolerates a few nulls in the array)
+  let objCount = 0;
+  for (const item of data) {
+    if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
+      objCount++;
+    }
+  }
+  return objCount / data.length >= 0.8 && objCount >= 1;
 }
 
 function isFlatObject(data: unknown): data is Record<string, unknown> {
   if (data === null || typeof data !== 'object' || Array.isArray(data)) return false;
-  return Object.values(data as Record<string, unknown>).every(
-    v => v === null || typeof v !== 'object'
-  );
+  const values = Object.values(data as Record<string, unknown>);
+  if (values.length === 0) return true;
+  return values.every(v => v === null || typeof v !== 'object');
 }
 
 function humanizeKey(key: string): string {
@@ -38,19 +55,38 @@ function humanizeKey(key: string): string {
     .trim();
 }
 
+function isUrl(value: string): boolean {
+  return URL_REGEX.test(value);
+}
+
+function isImageUrl(value: string): boolean {
+  return IMAGE_EXT_REGEX.test(value);
+}
+
 // ── Render primitives ──
 
 function renderValue(value: unknown, depth: number): string {
   if (value === null || value === undefined) {
-    return '<span class="mcp-null">—</span>';
+    return '<span class="mcp-null">\u2014</span>';
   }
   if (typeof value === 'boolean') {
-    return `<span class="mcp-bool">${value}</span>`;
+    return `<span class="mcp-bool mcp-bool-${value}">${value}</span>`;
   }
   if (typeof value === 'number') {
     return `<span class="mcp-num">${value}</span>`;
   }
   if (typeof value === 'string') {
+    if (value.length === 0) {
+      return '<span class="mcp-null">(empty)</span>';
+    }
+    // Auto-link URLs
+    if (isUrl(value)) {
+      const escaped = escapeHtml(value);
+      if (isImageUrl(value)) {
+        return `<a href="${escaped}" target="_blank" rel="noopener"><img class="mcp-img" src="${escaped}" alt="" loading="lazy"></a>`;
+      }
+      return `<a class="mcp-link" href="${escaped}" target="_blank" rel="noopener">${escaped}</a>`;
+    }
     if (value.length > 300) {
       return `<div class="mcp-text">${escapeHtml(value)}</div>`;
     }
@@ -62,22 +98,49 @@ function renderValue(value: unknown, depth: number): string {
 
 // ── Core recursive renderer ──
 
-function renderTable(rows: Record<string, unknown>[]): string {
-  const columns = Object.keys(rows[0]);
+/** Collect union of all keys across an array of objects, preserving order */
+function collectColumns(rows: Record<string, unknown>[]): string[] {
+  const seen = new Set<string>();
+  const columns: string[] = [];
+  for (const row of rows) {
+    for (const key of Object.keys(row)) {
+      if (!seen.has(key)) {
+        seen.add(key);
+        columns.push(key);
+      }
+    }
+  }
+  return columns;
+}
+
+function renderTable(rows: Record<string, unknown>[], tableId: string): string {
+  const columns = collectColumns(rows);
+  const truncated = rows.length > MAX_TABLE_ROWS;
+  const displayRows = truncated ? rows.slice(0, MAX_TABLE_ROWS) : rows;
+
   const headerCells = columns
     .map((col, i) =>
-      `<th onclick="__mcpSort(${i})" class="mcp-sortable">${escapeHtml(humanizeKey(col))}<span class="mcp-sort-icon">⇅</span></th>`)
+      `<th onclick="__mcpSort('${escapeHtml(tableId)}',${i})" class="mcp-sortable">${escapeHtml(humanizeKey(col))}<span class="mcp-sort-icon">\u21C5</span></th>`)
     .join('');
 
-  const bodyRows = rows
-    .map(row =>
-      `<tr>${columns.map(col => `<td>${renderValue(row[col], 0)}</td>`).join('')}</tr>`)
+  const bodyRows = displayRows
+    .map(row => {
+      const cells = columns.map(col => {
+        const val = Object.prototype.hasOwnProperty.call(row, col) ? row[col] : undefined;
+        return `<td>${renderValue(val, 1)}</td>`;
+      }).join('');
+      return `<tr>${cells}</tr>`;
+    })
     .join('\n');
 
+  const meta = truncated
+    ? `${rows.length} rows \u00D7 ${columns.length} columns (showing first ${MAX_TABLE_ROWS})`
+    : `${rows.length} rows \u00D7 ${columns.length} columns`;
+
   return `<div class="mcp-table-wrap">
-  <div class="mcp-table-meta">${rows.length} rows × ${columns.length} columns</div>
+  <div class="mcp-table-meta">${meta}</div>
   <div class="mcp-table-scroll">
-    <table class="mcp-table" id="mcp-grid">
+    <table class="mcp-table" id="${escapeHtml(tableId)}">
       <thead><tr>${headerCells}</tr></thead>
       <tbody>${bodyRows}</tbody>
     </table>
@@ -87,6 +150,9 @@ function renderTable(rows: Record<string, unknown>[]): string {
 
 function renderKeyValue(obj: Record<string, unknown>, depth: number): string {
   const entries = Object.entries(obj);
+  if (entries.length === 0) {
+    return '<div class="mcp-empty">(empty object)</div>';
+  }
   const items = entries.map(([key, val]) => {
     const rendered = renderValue(val, depth);
     return `<div class="mcp-kv">
@@ -99,10 +165,21 @@ function renderKeyValue(obj: Record<string, unknown>, depth: number): string {
 }
 
 function renderList(arr: unknown[], depth: number): string {
-  const items = arr.map(item =>
+  if (arr.length === 0) {
+    return '<div class="mcp-empty">(empty array)</div>';
+  }
+  const truncated = arr.length > MAX_LIST_ITEMS;
+  const displayItems = truncated ? arr.slice(0, MAX_LIST_ITEMS) : arr;
+
+  const items = displayItems.map(item =>
     `<li>${renderValue(item, depth)}</li>`
   ).join('\n');
-  return `<ul class="mcp-list">${items}</ul>`;
+
+  const suffix = truncated
+    ? `<li class="mcp-truncated">\u2026 and ${arr.length - MAX_LIST_ITEMS} more items</li>`
+    : '';
+
+  return `<ul class="mcp-list">${items}\n${suffix}</ul>`;
 }
 
 function renderCollapsible(label: string, content: string, open = true): string {
@@ -112,7 +189,15 @@ function renderCollapsible(label: string, content: string, open = true): string 
 </details>`;
 }
 
+// Global table counter for unique IDs
+let tableCounter = 0;
+
 function renderAny(data: unknown, depth: number): string {
+  // Depth guard
+  if (depth > MAX_DEPTH) {
+    return '<span class="mcp-null">(max depth reached)</span>';
+  }
+
   // Primitive
   if (data === null || data === undefined || typeof data !== 'object') {
     return renderValue(data, depth);
@@ -120,7 +205,13 @@ function renderAny(data: unknown, depth: number): string {
 
   // Array of objects → table
   if (isArrayOfObjects(data)) {
-    const content = renderTable(data);
+    // Filter to only objects for the table, skip non-objects
+    const objectRows = (data as unknown[]).filter(
+      (item): item is Record<string, unknown> =>
+        item !== null && typeof item === 'object' && !Array.isArray(item)
+    );
+    const tableId = `mcp-grid-${tableCounter++}`;
+    const content = renderTable(objectRows, tableId);
     return depth > 0 ? renderCollapsible(`Array (${data.length} items)`, content) : content;
   }
 
@@ -138,6 +229,10 @@ function renderAny(data: unknown, depth: number): string {
 
   // Nested object → grouped sections
   const entries = Object.entries(obj);
+  if (entries.length === 0) {
+    return '<div class="mcp-empty">(empty object)</div>';
+  }
+
   const sections = entries.map(([key, val]) => {
     if (val !== null && typeof val === 'object') {
       return renderCollapsible(humanizeKey(key), renderAny(val, depth + 1), depth < 2);
@@ -161,6 +256,7 @@ function renderAny(data: unknown, depth: number): string {
 
 /** Render any JSON data as an HTML fragment. No business logic, pure structure. */
 export function renderJSON(data: unknown): string {
+  tableCounter = 0; // Reset per render call
   return `<div class="mcp-root">${renderAny(data, 0)}</div>`;
 }
 
@@ -184,13 +280,14 @@ export function getRendererCSS(): string {
   text-transform: uppercase; letter-spacing: 0.05em;
   border-bottom: 2px solid var(--border);
   white-space: nowrap; user-select: none;
+  position: sticky; top: 0; background: var(--bg-primary); z-index: 1;
 }
 .mcp-sortable { cursor: pointer; }
 .mcp-sortable:hover { color: var(--accent); }
 .mcp-sort-icon { margin-left: 4px; opacity: 0.3; font-size: 10px; }
 .mcp-table td {
   padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--border);
-  vertical-align: top;
+  vertical-align: top; max-width: 400px;
 }
 .mcp-table tbody tr:hover { background: var(--accent-subtle); }
 
@@ -236,25 +333,42 @@ export function getRendererCSS(): string {
 /* Primitives */
 .mcp-null { color: var(--text-tertiary); font-style: italic; }
 .mcp-bool { font-weight: 600; }
+.mcp-bool-true { color: var(--success); }
+.mcp-bool-false { color: var(--danger); }
 .mcp-num { font-variant-numeric: tabular-nums; }
 .mcp-text { white-space: pre-wrap; line-height: 1.6; }
+.mcp-empty { color: var(--text-tertiary); font-style: italic; padding: var(--sp-2) 0; }
+.mcp-truncated { color: var(--text-tertiary); font-style: italic; }
+
+/* Links & images */
+.mcp-link { color: var(--accent); text-decoration: none; word-break: break-all; }
+.mcp-link:hover { text-decoration: underline; }
+.mcp-img { max-width: 200px; max-height: 150px; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+
+/* Nested table styling */
+.mcp-details .mcp-table-wrap { margin: 0; }
+.mcp-details .mcp-table th { position: static; }
 `;
 }
 
-/** Get the JS for table sorting (the only interactive behavior) */
+/** Get the JS for table sorting (supports multiple tables) */
 export function getRendererJS(): string {
   return `
-function __mcpSort(colIdx) {
-  var table = document.getElementById('mcp-grid');
+function __mcpSort(tableId, colIdx) {
+  var table = document.getElementById(tableId);
   if (!table) return;
   var tbody = table.tBodies[0];
   var rows = Array.from(tbody.rows);
-  var dir = table.dataset.sortDir === 'asc' ? 'desc' : 'asc';
+  var key = tableId + '_' + colIdx;
+  var dir = table.dataset.sortKey === key && table.dataset.sortDir === 'asc' ? 'desc' : 'asc';
   table.dataset.sortDir = dir;
+  table.dataset.sortKey = key;
 
   rows.sort(function(a, b) {
-    var av = a.cells[colIdx].textContent.trim();
-    var bv = b.cells[colIdx].textContent.trim();
+    var ac = a.cells[colIdx], bc = b.cells[colIdx];
+    if (!ac || !bc) return 0;
+    var av = ac.textContent.trim();
+    var bv = bc.textContent.trim();
     var an = parseFloat(av.replace(/[^\\d.-]/g, ''));
     var bn = parseFloat(bv.replace(/[^\\d.-]/g, ''));
     if (!isNaN(an) && !isNaN(bn)) return dir === 'asc' ? an - bn : bn - an;

@@ -1,7 +1,7 @@
 // ── test-mock subcommand: render mock data to HTML files ──
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { renderFromData, renderFromSchema } from '@mcp-html-bridge/ui-engine';
+import { renderFromDataSync, renderFromSchema } from '@mcp-html-bridge/ui-engine';
 import { ecommerceData, physicsData, sampleToolSchema } from './mock-data.js';
 
 export function testMock(outputDir: string, debug: boolean): void {
@@ -10,7 +10,7 @@ export function testMock(outputDir: string, debug: boolean): void {
   const opts = { debug };
 
   // 1. E-commerce data (composite: metrics + grid)
-  const ecommerceHtml = renderFromData(ecommerceData, {
+  const ecommerceHtml = renderFromDataSync(ecommerceData, {
     ...opts,
     title: 'E-Commerce Dashboard — TechMart',
     toolName: 'get_inventory',
@@ -20,7 +20,7 @@ export function testMock(outputDir: string, debug: boolean): void {
   console.log(`  ✓ ${ecomPath}`);
 
   // 2. E-commerce products only (data grid)
-  const gridHtml = renderFromData(ecommerceData.products, {
+  const gridHtml = renderFromDataSync(ecommerceData.products, {
     ...opts,
     title: 'Product Grid',
     toolName: 'list_products',
@@ -30,7 +30,7 @@ export function testMock(outputDir: string, debug: boolean): void {
   console.log(`  ✓ ${gridPath}`);
 
   // 3. Physics data (composite: reading block + metrics + grid)
-  const physicsHtml = renderFromData(physicsData, {
+  const physicsHtml = renderFromDataSync(physicsData, {
     ...opts,
     title: 'LHC Collision Analysis',
     toolName: 'analyze_collisions',
@@ -40,7 +40,7 @@ export function testMock(outputDir: string, debug: boolean): void {
   console.log(`  ✓ ${physicsPath}`);
 
   // 4. Physics results only (metrics cards)
-  const metricsHtml = renderFromData(physicsData.results, {
+  const metricsHtml = renderFromDataSync(physicsData.results, {
     ...opts,
     title: 'Collision Metrics',
     toolName: 'get_results',
@@ -61,7 +61,7 @@ export function testMock(outputDir: string, debug: boolean): void {
   console.log(`  ✓ ${formPath}`);
 
   // 6. Deep JSON (json-tree)
-  const treeHtml = renderFromData(physicsData, {
+  const treeHtml = renderFromDataSync(physicsData, {
     ...opts,
     title: 'Raw JSON Tree',
   });
