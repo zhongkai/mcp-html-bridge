@@ -1,0 +1,29 @@
+{
+  "name": "@mcp-html-bridge/mcp-client",
+  "version": "0.1.0",
+  "description": "MCP protocol client for schema extraction",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zhongkai/mcp-html-bridge.git",
+    "directory": "packages/core-mcp-client"
+  }
+}

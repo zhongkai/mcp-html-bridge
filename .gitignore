@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.tsbuildinfo
+mcp-html-output/
+test-output/
+.DS_Store
+*.log

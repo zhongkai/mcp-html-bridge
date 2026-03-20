@@ -1,0 +1,24 @@
+{
+  "name": "@mcp-html-bridge/proxy",
+  "version": "0.1.0",
+  "description": "MCP proxy that intercepts & enhances responses with HTML UI",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@mcp-html-bridge/ui-engine": "*",
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zhongkai/mcp-html-bridge.git",
+    "directory": "packages/adapter-proxy"
+  }
+}

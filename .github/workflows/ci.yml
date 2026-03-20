@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build all packages
+        run: npm run build
+
+      - name: Verify test-mock output
+        run: |
+          node packages/adapter-cli/dist/index.js test-mock -o ./test-output
+          test -f ./test-output/ecommerce.html
+          test -f ./test-output/data-grid.html
+          test -f ./test-output/physics.html
+          test -f ./test-output/metrics.html
+          test -f ./test-output/form.html
+          test -f ./test-output/json-tree.html
+          echo "All 6 HTML files generated successfully"
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build all packages
+        run: npm run build
+
+      - name: Publish packages
+        run: |
+          for pkg in core-ui-engine core-mcp-client adapter-cli adapter-proxy; do
+            cd packages/$pkg
+            npm publish --access public --provenance || echo "Skipped $pkg (already published or not authorized)"
+            cd ../..
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

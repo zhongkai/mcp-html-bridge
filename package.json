@@ -1,0 +1,29 @@
+{
+  "name": "mcp-html-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Universal MCP rendering middleware — schema/data → self-contained HTML UI",
+  "workspaces": [
+    "packages/core-ui-engine",
+    "packages/core-mcp-client",
+    "packages/adapter-cli",
+    "packages/adapter-proxy"
+  ],
+  "scripts": {
+    "build": "npm run build -w packages/core-ui-engine && npm run build -w packages/core-mcp-client && npm run build -w packages/adapter-cli && npm run build -w packages/adapter-proxy",
+    "clean": "rm -rf packages/core-ui-engine/dist packages/core-mcp-client/dist packages/adapter-cli/dist packages/adapter-proxy/dist",
+    "typecheck": "tsc --build tsconfig.base.json"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zhongkai/mcp-html-bridge.git"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "typescript": "^5.9.3"
+  }
+}
