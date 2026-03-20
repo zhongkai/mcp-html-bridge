@@ -1,6 +1,6 @@
 {
   "name": "@mcp-html-bridge/cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "CLI adapter for MCP-HTML-Bridge",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
