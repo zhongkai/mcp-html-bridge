@@ -3,5 +3,7 @@ dist/
 *.tsbuildinfo
 mcp-html-output/
 test-output/
+demos/*/output/
 .DS_Store
 *.log
+GUIDE.md
