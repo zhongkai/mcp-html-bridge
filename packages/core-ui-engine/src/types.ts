@@ -1,19 +1,3 @@
-// ── Render Intent ──
-export type RenderIntent =
-  | 'form'
-  | 'data-grid'
-  | 'json-tree'
-  | 'reading-block'
-  | 'metrics-card'
-  | 'composite';
-
-// ── Sniffer Result ──
-export interface SniffResult {
-  intent: RenderIntent;
-  confidence: number;
-  metadata: Record<string, unknown>;
-}
-
 // ── Render Options ──
 export interface RenderOptions {
   darkMode?: boolean;
@@ -60,13 +44,6 @@ export interface JSONSchema {
   $ref?: string;
   additionalProperties?: boolean | JSONSchema;
 }
-
-// ── Renderer function signature ──
-export type Renderer = (
-  data: unknown,
-  metadata: Record<string, unknown>,
-  themeCSS: string
-) => string;
 
 // ── MCP Tool definition (from protocol) ──
 export interface MCPToolDefinition {

@@ -15,7 +15,7 @@ const program = new Command();
 program
   .name('mcp-html-skill')
   .description('Claude Code skill for MCP-HTML-Bridge')
-  .version('0.1.0');
+  .version('0.4.0');
 
 program
   .command('install')
@@ -31,7 +31,6 @@ program
   .option('--data <file>', 'JSON data file (renders result view)')
   .option('--json <string>', 'Inline JSON string')
   .option('--mode <mode>', 'Force render mode: schema | data (auto-detected if omitted)')
-  .option('--renderer <type>', 'Explicit renderer: data-grid | metrics-card | json-tree | reading-block | composite | auto')
   .option('--title <title>', 'Page title')
   .option('--tool-name <name>', 'Tool name for bridge protocol')
   .option('--tool-desc <desc>', 'Tool description')

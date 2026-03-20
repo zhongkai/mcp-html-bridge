@@ -1,6 +1,6 @@
 # MCP-HTML-Bridge
 
-> Universal MCP rendering middleware — transform any MCP tool's schema or return data into zero-dependency, self-contained HTML UI.
+> Generic MCP GUI wrapper — render any MCP tool's JSON data as zero-dependency, self-contained HTML.
 
 [English](#english) | [中文](#中文)
 
@@ -12,18 +12,31 @@
 
 ### Overview
 
-MCP-HTML-Bridge is a TypeScript monorepo that takes any [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) tool's JSON Schema or result data and automatically generates beautiful, interactive HTML pages — **with zero runtime dependencies**.
+MCP-HTML-Bridge is a universal rendering middleware for [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) tools. Feed it any JSON data or JSON Schema, and it produces a clean, interactive HTML page — **zero runtime dependencies, zero business logic**.
 
-It features:
+The core principle: **pure structural rendering**. No status badges, no price formatting, no regex-based field guessing. The renderer looks at JSON structure and maps it to HTML:
 
-- **Smart Data Sniffing** — Confidence-scored heuristic engine that auto-detects the best rendering strategy (data grid, metrics cards, JSON tree, reading block, form, or composite layout)
-- **6 Built-in Renderers** — Form, sortable data grid, collapsible JSON tree, reading block, KPI metrics cards, and composite multi-section layout
-- **Dark Mode** — Automatic via `prefers-color-scheme` with CSS variables
-- **Bridge Protocol** — Bidirectional `postMessage` / `CustomEvent` communication for iframe embedding
-- **Debug Playground** — Optional floating panel with LLM config, console logging, and JSON injection
-- **Claude Code Skill** — First-class `/mcp-render` command for Claude Code integration
-- **CLI Tool** — `mcp-bridge compile` to connect to any MCP server and generate UI, `mcp-bridge test-mock` for demo output
-- **Proxy Mode** — Drop-in MCP proxy that intercepts tool results and appends rendered HTML
+| JSON Shape | HTML Output |
+|---|---|
+| Array of objects | Sortable `<table>` with auto-detected columns |
+| Flat object | Key-value pairs (`<dl>`) |
+| Nested object | Collapsible `<details>` sections |
+| Array of scalars | Bulleted `<ul>` list |
+| Primitives | Typed `<span>` (number, boolean, null) |
+| JSON Schema | Interactive form with smart widgets |
+
+All formatting decisions are the caller's responsibility — whether that's an LLM, a CLI tool, or your own code.
+
+### Features
+
+- **Universal JSON → HTML** — One renderer for any data shape
+- **Zero Business Logic** — No hardcoded patterns, no domain-specific formatting
+- **Dark Mode** — Automatic via `prefers-color-scheme`
+- **Bridge Protocol** — Bidirectional `postMessage` / `CustomEvent` for iframe embedding
+- **Self-Contained** — Each HTML file is fully standalone (no CDN, no npm, no build step)
+- **Claude-Independent** — Works with any LLM, any MCP client, or standalone
+- **CLI Tool** — Render from command line with `mcp-html-skill render`
+- **Proxy Mode** — Drop-in MCP proxy that enhances tool results with HTML
 
 ### Packages
 
@@ -33,7 +46,7 @@ It features:
 | `@mcp-html-bridge/mcp-client` | Lightweight MCP stdio client |
 | `@mcp-html-bridge/cli` | CLI adapter (`mcp-bridge` command) |
 | `@mcp-html-bridge/proxy` | MCP proxy server |
-| `@mcp-html-bridge/claude-skill` | Claude Code skill (`/mcp-render` command) |
+| `@mcp-html-bridge/claude-skill` | Claude Code integration (`/mcp-render` command) |
 
 ### Quick Start
 
@@ -41,11 +54,9 @@ It features:
 # Install the rendering engine
 npm install @mcp-html-bridge/ui-engine
 
-# Or use the CLI
-npx @mcp-html-bridge/cli test-mock -o ./output -d
-
-# Or install the Claude Code skill (see below)
-npx @mcp-html-bridge/claude-skill install
+# Or use the CLI to render JSON
+echo '[{"name":"Alice","age":30},{"name":"Bob","age":25}]' | \
+  npx @mcp-html-bridge/claude-skill render --data /dev/stdin --open
 ```
 
 ### Usage
@@ -53,36 +64,38 @@ npx @mcp-html-bridge/claude-skill install
 #### As a Library
 
 ```typescript
-import { render, renderFromData, renderFromSchema } from '@mcp-html-bridge/ui-engine';
+import { renderFromData, renderFromSchema, renderJSON } from '@mcp-html-bridge/ui-engine';
 
-// Render from tool result data (auto-detects best layout)
+// Full HTML document from any JSON data
 const html = renderFromData(myData, {
-  title: 'Dashboard',
-  debug: true,  // enable playground panel
+  title: 'MCP Result',
 });
 
-// Render a form from JSON Schema
+// Form from JSON Schema
 const formHtml = renderFromSchema(toolSchema, {
   toolName: 'search_products',
   toolDescription: 'Search the catalog',
 });
 
-// Unified API
-const output = render({
-  mode: 'data',
-  data: myData,
-  toolName: 'get_inventory',
-}, { darkMode: true });
+// Just the HTML fragment (no document wrapper)
+import { renderJSON } from '@mcp-html-bridge/ui-engine';
+const fragment = renderJSON(myData);
 ```
 
 #### CLI
 
 ```bash
-# Generate HTML from built-in mock datasets
-mcp-bridge test-mock -o ./output --debug
+# Render JSON data to HTML and open in browser
+mcp-html-skill render --data result.json --title "My Result" --open
 
-# Connect to an MCP server and generate SKILL.md
-mcp-bridge compile "npx -y @modelcontextprotocol/server-filesystem /tmp" -o SKILL.md
+# Render to stdout for piping
+mcp-html-skill render --data result.json --stdout
+
+# Render a JSON Schema as a form
+mcp-html-skill render --schema tool-schema.json --open
+
+# Generate test output from mock datasets
+npx @mcp-html-bridge/cli test-mock -o ./output
 ```
 
 #### Proxy Mode
@@ -92,141 +105,84 @@ mcp-bridge compile "npx -y @modelcontextprotocol/server-filesystem /tmp" -o SKIL
 npx @mcp-html-bridge/proxy "npx -y @modelcontextprotocol/server-filesystem /tmp"
 ```
 
+### Architecture
+
+```
+┌─────────────────────────────────────────────┐
+│  Any MCP Client (Claude Code, other LLMs,   │
+│  custom apps, scripts, etc.)                │
+│                                             │
+│  ┌────────────┐    ┌─────────────────────┐  │
+│  │ MCP Server │───▶│ Tool Result (JSON)  │  │
+│  └────────────┘    └──────────┬──────────┘  │
+│                               │              │
+│                ┌──────────────▼──────────┐   │
+│                │ mcp-html-bridge         │   │
+│                │ ┌──────────────────┐    │   │
+│                │ │ JSON → HTML      │    │   │
+│                │ │ (pure structural │    │   │
+│                │ │  rendering)      │    │   │
+│                │ └──────────────────┘    │   │
+│                └──────────────┬──────────┘   │
+│                               │              │
+│                /tmp/mcp-html-bridge/*.html    │
+│                               │              │
+│                        open ──┘              │
+└───────────────────────┬──────────────────────┘
+                        ▼
+                  ┌───────────┐
+                  │  Browser  │
+                  └───────────┘
+```
+
+### Example: Baidu Youxuan E-Commerce MCP
+
+[Baidu Youxuan](https://openai.baidu.com/) provides MCP tools for product search and comparison. Here's how to render its output:
+
+```bash
+# 1. Call MCP tool, save result
+cat <<'EOF' > /tmp/youxuan-result.json
+[
+  { "dimension": "商品名称", "SKU-001": "联想小新 Pro 16", "SKU-002": "RedmiBook Pro 15" },
+  { "dimension": "到手价",   "SKU-001": "¥4,699",          "SKU-002": "¥4,099" },
+  { "dimension": "处理器",   "SKU-001": "R7-8845H",        "SKU-002": "i7-13700H" },
+  { "dimension": "评分",     "SKU-001": "4.8",             "SKU-002": "4.7" }
+]
+EOF
+
+# 2. Render — no business logic, just a sortable table
+mcp-html-skill render \
+  --data /tmp/youxuan-result.json \
+  --title "笔记本参数对比" \
+  --open
+```
+
+The rendered HTML shows a sortable comparison table with the raw data — no price formatting, no status badges, no assumptions about what the values mean.
+
 ### Claude Code Integration
 
-MCP-HTML-Bridge provides a first-class Claude Code skill that lets you visualize any MCP tool result as a rich HTML page — directly from your Claude Code session.
-
-#### Install the Skill
+If you use Claude Code, install the `/mcp-render` skill:
 
 ```bash
 npx @mcp-html-bridge/claude-skill install
 ```
 
-This copies the `/mcp-render` command to `~/.claude/commands/`. Once installed, you can use `/mcp-render` in any Claude Code conversation.
+Then use `/mcp-render` in any Claude Code conversation to let Claude render MCP tool results as HTML pages.
 
-#### Real-World Example: Baidu Youxuan E-Commerce MCP
-
-[Baidu Youxuan (百度优选)](https://openai.baidu.com/) provides MCP tools for CPS product search, parameter comparison, and purchase recommendations. Here's how to use MCP-HTML-Bridge to visualize its tool results in Claude Code.
-
-**Step 1 — Configure the MCP server**
-
-Add the Baidu Youxuan MCP server to your Claude Code MCP config:
-
-```json
-{
-  "mcpServers": {
-    "baidu-youxuan": {
-      "command": "npx",
-      "args": ["-y", "baidu-youxuan-mcp-server"],
-      "env": {
-        "YOUXUAN_API_KEY": "<your-api-key>"
-      }
-    }
-  }
-}
-```
-
-**Step 2 — Call the MCP tool and render**
-
-In Claude Code, ask Claude to compare products and visualize the result:
-
-```
-> Help me compare these laptops on Baidu Youxuan:
-  联想小新 Pro 16, RedmiBook Pro 15, 华为 MateBook 14s, 荣耀 MagicBook X 16 Pro
-  Then render the comparison as an HTML page I can open in my browser.
-```
-
-Claude will:
-
-1. Call `baidu_youxuan_compare` with the product IDs
-2. Receive structured comparison data:
-   ```json
-   [
-     { "dimension": "商品名称", "SKU-001": "联想小新 Pro 16", "SKU-002": "RedmiBook Pro 15", ... },
-     { "dimension": "到手价",   "SKU-001": "¥4,699",          "SKU-002": "¥4,099", ... },
-     { "dimension": "处理器",   "SKU-001": "R7-8845H",        "SKU-002": "i7-13700H", ... },
-     { "dimension": "评分",     "SKU-001": "4.8",             "SKU-002": "4.7", ... },
-     { "dimension": "佣金比例", "SKU-001": "3.5%",            "SKU-002": "4.2%", ... }
-   ]
-   ```
-3. Pipe it through MCP-HTML-Bridge:
-   ```bash
-   mcp-html-skill render --data /tmp/mcp-input.json \
-     --title "笔记本参数对比 — 百度优选" \
-     --tool-name "baidu_youxuan_compare" \
-     --open
-   ```
-4. A self-contained HTML page opens in your browser — sortable comparison table with formatted prices, ratings, and commission badges. No server, no dependencies.
-
-**Step 3 — Or use the slash command**
-
-Type `/mcp-render` in Claude Code and Claude will guide you interactively.
-
-#### Architecture
-
-```
-┌───────────────────────────────────────────────────┐
-│  Claude Code                                      │
-│                                                   │
-│  User: "Compare these laptops, render as HTML"    │
-│                                                   │
-│  ┌────────────┐    ┌───────────────────────────┐  │
-│  │ MCP Server │───▶│ Tool Result (JSON)        │  │
-│  │ (Youxuan)  │    │ { comparison: [...] }     │  │
-│  └────────────┘    └────────────┬──────────────┘  │
-│                                 │                  │
-│                  ┌──────────────▼──────────────┐   │
-│                  │ mcp-html-skill render       │   │
-│                  │ ┌────────────────────────┐  │   │
-│                  │ │ Data Sniffer → Grid    │  │   │
-│                  │ │ Theme + Bridge JS      │  │   │
-│                  │ │ → Self-contained HTML  │  │   │
-│                  │ └────────────────────────┘  │   │
-│                  └──────────────┬──────────────┘   │
-│                                 │                  │
-│                  /tmp/mcp-html-bridge/*.html        │
-│                                 │                  │
-│                          open ──┘                  │
-└─────────────────────────┬──────────────────────────┘
-                          ▼
-                    ┌───────────┐
-                    │  Browser  │
-                    └───────────┘
-```
-
-#### Delivery Modes
+### Delivery Modes
 
 | Mode | Flag | Use Case |
 |---|---|---|
-| **File + Browser** | `--open` | Default. Writes HTML, opens in browser |
+| **File + Browser** | `--open` | Writes HTML, opens in browser |
 | **File only** | _(none)_ | Writes HTML, prints path |
-| **Stdout** | `--stdout` | Prints raw HTML to stdout for piping or embedding |
-
-Generated HTML is fully self-contained:
-- Zero runtime dependencies — no CDN, no npm, no build step
-- Dark mode follows system preference
-- Sortable tables, collapsible trees, formatted metrics
-- Optional debug playground for LLM API testing
-
-### Data Sniffer
-
-The engine automatically detects the best rendering strategy:
-
-| Data Shape | Detected Intent | Renderer |
-|---|---|---|
-| Array of objects with consistent keys | `data-grid` | Sortable table with status badges |
-| Flat object with numeric values | `metrics-card` | KPI card layout |
-| Deeply nested structure (depth > 3) | `json-tree` | Collapsible syntax-highlighted tree |
-| Long text strings or text-like keys | `reading-block` | Formatted text display |
-| JSON Schema with properties | `form` | Interactive form with smart widgets |
-| Mixed data types | `composite` | Multi-section layout |
+| **Stdout** | `--stdout` | Prints raw HTML for piping or embedding |
 
 ### Development
 
 ```bash
 npm install
 npm run build
-node packages/adapter-cli/dist/index.js test-mock -o ./mcp-html-output -d
+node packages/adapter-cli/dist/index.js test-mock -o ./mcp-html-output
 ```
 
 ### License
@@ -241,17 +197,31 @@ MIT
 
 ### 概述
 
-MCP-HTML-Bridge 是一个 TypeScript monorepo 项目，能够将任何 [MCP（Model Context Protocol）](https://modelcontextprotocol.io/) 工具的 JSON Schema 或返回数据自动转换为精美的交互式 HTML 页面 — **零运行时依赖**。
+MCP-HTML-Bridge 是一个通用的 [MCP（Model Context Protocol）](https://modelcontextprotocol.io/) GUI 包装器。输入任意 JSON 数据或 JSON Schema，输出干净的交互式 HTML 页面 — **零运行时依赖，零业务逻辑**。
 
-核心特性：
+核心原则：**纯结构化渲染**。没有状态标签、没有价格格式化、没有基于正则的字段猜测。渲染器只看 JSON 结构，映射为 HTML：
 
-- **智能数据嗅探** — 基于置信度评分的启发式引擎，自动检测最佳渲染策略
-- **6 种内置渲染器** — 表单、可排序数据表格、可折叠 JSON 树、阅读块、KPI 指标卡片、复合多区域布局
+| JSON 形状 | HTML 输出 |
+|---|---|
+| 对象数组 | 可排序 `<table>`，自动识别列 |
+| 扁平对象 | 键值对 (`<dl>`) |
+| 嵌套对象 | 可折叠 `<details>` 区块 |
+| 标量数组 | `<ul>` 列表 |
+| 基础类型 | 带类型的 `<span>`（数字、布尔、null） |
+| JSON Schema | 交互式表单 |
+
+所有格式化决策由调用方负责 — 无论是 LLM、CLI 工具还是你自己的代码。
+
+### 特性
+
+- **通用 JSON → HTML** — 一个渲染器适配任意数据形状
+- **零业务逻辑** — 没有硬编码模式、没有领域特定格式化
 - **暗色模式** — 通过 `prefers-color-scheme` 自动切换
-- **Bridge 通信协议** — 双向 `postMessage` / `CustomEvent` 通信
-- **Claude Code 技能** — 一等公民的 `/mcp-render` 命令，与 Claude Code 深度集成
-- **CLI 工具** — `mcp-bridge compile` 连接 MCP 服务器生成 UI
-- **代理模式** — 拦截工具返回并附加渲染后的 HTML
+- **Bridge 通信协议** — 双向 `postMessage` / `CustomEvent`，支持 iframe 嵌入
+- **完全自包含** — 每个 HTML 文件独立运行（无 CDN、无 npm、无构建步骤）
+- **与 Claude 无关** — 适用于任何 LLM、任何 MCP 客户端，或独立使用
+- **CLI 工具** — 命令行渲染 `mcp-html-skill render`
+- **代理模式** — 透明代理 MCP 服务器，自动增强返回结果
 
 ### 包列表
 
@@ -261,7 +231,7 @@ MCP-HTML-Bridge 是一个 TypeScript monorepo 项目，能够将任何 [MCP（Mo
 | `@mcp-html-bridge/mcp-client` | 轻量级 MCP stdio 客户端 |
 | `@mcp-html-bridge/cli` | CLI 适配器 |
 | `@mcp-html-bridge/proxy` | MCP 代理服务器 |
-| `@mcp-html-bridge/claude-skill` | Claude Code 技能（`/mcp-render` 命令） |
+| `@mcp-html-bridge/claude-skill` | Claude Code 集成（`/mcp-render` 命令） |
 
 ### 快速开始
 
@@ -269,157 +239,106 @@ MCP-HTML-Bridge 是一个 TypeScript monorepo 项目，能够将任何 [MCP（Mo
 # 安装渲染引擎
 npm install @mcp-html-bridge/ui-engine
 
-# 或使用 CLI
-npx @mcp-html-bridge/cli test-mock -o ./output -d
-
-# 或安装 Claude Code 技能（详见下方）
-npx @mcp-html-bridge/claude-skill install
+# 或用 CLI 渲染 JSON
+echo '[{"name":"Alice","age":30},{"name":"Bob","age":25}]' | \
+  npx @mcp-html-bridge/claude-skill render --data /dev/stdin --open
 ```
 
-### 在 Claude Code 中使用
+### 作为库使用
 
-MCP-HTML-Bridge 提供了一等公民的 Claude Code 技能，让你在 Claude Code 对话中直接将任意 MCP 工具结果渲染为可视化 HTML 页面。
+```typescript
+import { renderFromData, renderFromSchema, renderJSON } from '@mcp-html-bridge/ui-engine';
 
-#### 安装技能
+// 从任意 JSON 数据生成完整 HTML 文档
+const html = renderFromData(myData, { title: 'MCP 结果' });
+
+// 从 JSON Schema 生成表单
+const formHtml = renderFromSchema(toolSchema, {
+  toolName: 'search_products',
+  toolDescription: '搜索商品目录',
+});
+
+// 仅生成 HTML 片段（不含文档包装）
+const fragment = renderJSON(myData);
+```
+
+### 示例：百度优选电商 MCP
+
+[百度优选](https://openai.baidu.com/) 提供了商品检索和对比的 MCP 工具。以下演示如何渲染其输出：
+
+```bash
+# 1. 将 MCP 工具结果保存为文件
+cat <<'EOF' > /tmp/youxuan-result.json
+[
+  { "dimension": "商品名称", "SKU-001": "联想小新 Pro 16", "SKU-002": "RedmiBook Pro 15" },
+  { "dimension": "到手价",   "SKU-001": "¥4,699",          "SKU-002": "¥4,099" },
+  { "dimension": "处理器",   "SKU-001": "R7-8845H",        "SKU-002": "i7-13700H" },
+  { "dimension": "评分",     "SKU-001": "4.8",             "SKU-002": "4.7" }
+]
+EOF
+
+# 2. 渲染 — 纯结构化，原样展示数据
+mcp-html-skill render \
+  --data /tmp/youxuan-result.json \
+  --title "笔记本参数对比" \
+  --open
+```
+
+渲染出的 HTML 是一个可排序的对比表格，原样展示数据 — 没有价格格式化，没有状态标签，不对数据含义做任何假设。
+
+### Claude Code 集成
+
+如果你使用 Claude Code，可以安装 `/mcp-render` 技能：
 
 ```bash
 npx @mcp-html-bridge/claude-skill install
 ```
 
-将 `/mcp-render` 命令安装到 `~/.claude/commands/`，安装后即可在任意 Claude Code 对话中使用。
+然后在任意 Claude Code 对话中使用 `/mcp-render`，让 Claude 将 MCP 工具结果渲染为 HTML 页面。
 
-#### 实战示例：百度优选电商 MCP 商品对比
-
-[百度优选](https://openai.baidu.com/) 提供了 CPS 商品检索、参数对比和购买决策的 MCP 工具。以下演示如何在 Claude Code 中结合百度优选 MCP 和 MCP-HTML-Bridge 生成可视化 HTML。
-
-**第一步 — 配置百度优选 MCP 服务器**
-
-在 Claude Code MCP 配置中添加：
-
-```json
-{
-  "mcpServers": {
-    "baidu-youxuan": {
-      "command": "npx",
-      "args": ["-y", "baidu-youxuan-mcp-server"],
-      "env": {
-        "YOUXUAN_API_KEY": "<你的-API-密钥>"
-      }
-    }
-  }
-}
-```
-
-**第二步 — 让 Claude 调用工具并渲染**
-
-在 Claude Code 中对话：
+### 架构
 
 ```
-> 帮我在百度优选上对比这几款笔记本的参数：
-  联想小新 Pro 16、RedmiBook Pro 15、华为 MateBook 14s、荣耀 MagicBook X 16 Pro
-  然后渲染成可视化 HTML 页面打开。
+┌─────────────────────────────────────────────┐
+│  任意 MCP 客户端（Claude Code、其他 LLM、     │
+│  自定义应用、脚本等）                          │
+│                                             │
+│  ┌────────────┐    ┌─────────────────────┐  │
+│  │ MCP 服务器  │───▶│ 工具返回 (JSON)     │  │
+│  └────────────┘    └──────────┬──────────┘  │
+│                               │              │
+│                ┌──────────────▼──────────┐   │
+│                │ mcp-html-bridge         │   │
+│                │ ┌──────────────────┐    │   │
+│                │ │ JSON → HTML      │    │   │
+│                │ │ (纯结构化渲染)    │    │   │
+│                │ └──────────────────┘    │   │
+│                └──────────────┬──────────┘   │
+│                               │              │
+│                /tmp/mcp-html-bridge/*.html    │
+│                               │              │
+│                        open ──┘              │
+└───────────────────────┬──────────────────────┘
+                        ▼
+                  ┌───────────┐
+                  │   浏览器   │
+                  └───────────┘
 ```
 
-Claude 会自动完成以下步骤：
-
-1. 调用 `baidu_youxuan_compare` 工具，传入商品 ID 列表
-2. 获取结构化对比数据（处理器、价格、评分、佣金等维度）
-3. 将数据交给 MCP-HTML-Bridge 渲染：
-   ```bash
-   mcp-html-skill render --data /tmp/mcp-input.json \
-     --title "笔记本参数对比 — 百度优选" \
-     --tool-name "baidu_youxuan_compare" \
-     --open
-   ```
-4. 浏览器自动打开：一个零依赖的 HTML 页面，包含可排序对比表、格式化价格和佣金标签
-
-**第三步 — 或直接使用斜杠命令**
-
-```
-> /mcp-render
-```
-
-Claude 会引导你提供 JSON 数据并交互式渲染。
-
-#### 工作流程
-
-```
-┌───────────────────────────────────────────────────┐
-│  Claude Code                                      │
-│                                                   │
-│  用户: "对比这几款笔记本，渲染成 HTML"                  │
-│                                                   │
-│  ┌────────────┐    ┌───────────────────────────┐  │
-│  │ MCP 服务器  │───▶│ 工具返回 (JSON)            │  │
-│  │ (百度优选)   │    │ { comparison: [...] }     │  │
-│  └────────────┘    └────────────┬──────────────┘  │
-│                                 │                  │
-│                  ┌──────────────▼──────────────┐   │
-│                  │ mcp-html-skill render       │   │
-│                  │ ┌────────────────────────┐  │   │
-│                  │ │ 数据嗅探 → data-grid   │  │   │
-│                  │ │ 主题 CSS + Bridge JS   │  │   │
-│                  │ │ → 自包含 HTML          │  │   │
-│                  │ └────────────────────────┘  │   │
-│                  └──────────────┬──────────────┘   │
-│                                 │                  │
-│                  /tmp/mcp-html-bridge/*.html        │
-│                                 │                  │
-│                          open ──┘                  │
-└─────────────────────────┬──────────────────────────┘
-                          ▼
-                    ┌───────────┐
-                    │   浏览器   │
-                    └───────────┘
-```
-
-#### 交付模式
+### 交付模式
 
 | 模式 | 参数 | 场景 |
 |---|---|---|
-| **文件 + 浏览器** | `--open` | 默认。写入 HTML 到 `/tmp/`，自动打开浏览器 |
+| **文件 + 浏览器** | `--open` | 写入 HTML，自动打开浏览器 |
 | **仅文件** | 无参数 | 写入 HTML，输出路径 |
-| **标准输出** | `--stdout` | 输出原始 HTML，用于管道传输或嵌入回复流 |
-
-生成的 HTML 完全自包含：
-- 零运行时依赖（无 CDN、无 npm、无构建步骤）
-- 暗色模式跟随系统偏好
-- 可排序表格、可折叠树、格式化指标卡片
-- 可选调试面板，支持 LLM API 中继
-
-### 作为库使用
-
-```typescript
-import { render, renderFromData, renderFromSchema } from '@mcp-html-bridge/ui-engine';
-
-const html = renderFromData(myData, {
-  title: '仪表盘',
-  debug: true,
-});
-
-const formHtml = renderFromSchema(toolSchema, {
-  toolName: 'search_products',
-  toolDescription: '搜索商品目录',
-});
-```
-
-### 数据嗅探器
-
-| 数据形状 | 检测意图 | 渲染器 |
-|---|---|---|
-| 具有一致键的对象数组 | `data-grid` | 可排序表格（含状态标签） |
-| 包含数值的扁平对象 | `metrics-card` | KPI 卡片布局 |
-| 深层嵌套结构（深度 > 3） | `json-tree` | 可折叠语法高亮树 |
-| 长文本字符串或文本类键 | `reading-block` | 格式化文本展示 |
-| 带 properties 的 JSON Schema | `form` | 交互式智能表单 |
-| 混合数据类型 | `composite` | 多区域复合布局 |
+| **标准输出** | `--stdout` | 输出原始 HTML，用于管道传输或嵌入 |
 
 ### 开发
 
 ```bash
 npm install
 npm run build
-node packages/adapter-cli/dist/index.js test-mock -o ./mcp-html-output -d
+node packages/adapter-cli/dist/index.js test-mock -o ./mcp-html-output
 ```
 
 ### 许可证

@@ -5,16 +5,12 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
 import { renderFromSchema, renderFromData } from '@mcp-html-bridge/ui-engine';
-import type { RenderIntent } from '@mcp-html-bridge/ui-engine';
-
-const VALID_RENDERERS = ['data-grid', 'metrics-card', 'json-tree', 'reading-block', 'composite', 'auto'];
 
 interface RenderOptions {
   schema?: string;
   data?: string;
   json?: string;
   mode?: 'schema' | 'data';
-  renderer?: string;
   title?: string;
   toolName?: string;
   toolDesc?: string;
@@ -63,10 +59,6 @@ function loadJSON(options: RenderOptions): { json: unknown; detectedMode: 'schem
 }
 
 function buildHTML(json: unknown, mode: string, options: RenderOptions): string {
-  const rendererChoice = options.renderer && options.renderer !== 'auto'
-    ? options.renderer as RenderIntent
-    : undefined;
-
   if (mode === 'schema') {
     return renderFromSchema(json as Record<string, unknown>, {
       title: options.title ?? options.toolName ?? 'MCP Tool Input',
@@ -81,18 +73,10 @@ function buildHTML(json: unknown, mode: string, options: RenderOptions): string 
     toolName: options.toolName,
     toolDescription: options.toolDesc,
     debug: options.debug,
-    renderer: rendererChoice,
   });
 }
 
 export function render(options: RenderOptions): void {
-  // Validate renderer choice
-  if (options.renderer && !VALID_RENDERERS.includes(options.renderer)) {
-    console.error(`  Error: Unknown renderer "${options.renderer}".`);
-    console.error(`  Available: ${VALID_RENDERERS.join(', ')}`);
-    process.exit(1);
-  }
-
   const { json, detectedMode } = loadJSON(options);
   const mode = options.mode ?? detectedMode;
   const html = buildHTML(json, mode, options);
