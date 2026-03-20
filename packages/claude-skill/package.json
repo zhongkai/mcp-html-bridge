@@ -1,19 +1,23 @@
 {
-  "name": "@mcp-html-bridge/cli",
+  "name": "@mcp-html-bridge/claude-skill",
   "version": "0.2.0",
-  "description": "CLI adapter for MCP-HTML-Bridge",
+  "description": "Claude Code skill for MCP-HTML-Bridge — render MCP tool data as interactive HTML pages",
+  "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "mcp-bridge": "./dist/index.js"
+    "mcp-html-skill": "./dist/index.js"
   },
+  "files": [
+    "dist/",
+    "commands/"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist"
   },
   "dependencies": {
     "@mcp-html-bridge/ui-engine": "*",
-    "@mcp-html-bridge/mcp-client": "*",
     "commander": "^12.0.0"
   },
   "license": "MIT",
@@ -23,6 +27,6 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/zhongkai/mcp-html-bridge.git",
-    "directory": "packages/adapter-cli"
+    "directory": "packages/claude-skill"
   }
 }

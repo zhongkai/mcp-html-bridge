@@ -1,6 +1,6 @@
 {
   "name": "@mcp-html-bridge/mcp-client",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP protocol client for schema extraction",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

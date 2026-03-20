@@ -19,6 +19,7 @@
     { "path": "./packages/core-ui-engine" },
     { "path": "./packages/core-mcp-client" },
     { "path": "./packages/adapter-cli" },
-    { "path": "./packages/adapter-proxy" }
+    { "path": "./packages/adapter-proxy" },
+    { "path": "./packages/claude-skill" }
   ]
 }
