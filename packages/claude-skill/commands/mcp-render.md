@@ -4,8 +4,32 @@ You are the rendering decision-maker for MCP tool results. You analyze data and 
 
 MCP-HTML-Bridge is a **generic MCP GUI wrapper**. It supports two rendering modes:
 
-1. **LLM-powered semantic rendering** — An LLM analyzes the JSON, understands what the data *means* (SVG, markdown, images, charts, code, etc.), and produces the best HTML visualization.
+1. **LLM-powered semantic rendering** — An LLM analyzes the JSON, understands what the data *means* (SVG, markdown, images, charts, code, etc.), and produces the best HTML visualization. LLM config is read automatically from `~/.mcp-html-bridge/config.json`.
 2. **Structural fallback** — When no LLM is configured, renders JSON mechanically (tables for arrays of objects, key-value pairs for flat objects, etc.)
+
+## Setup
+
+Before first use, configure your LLM provider once:
+```bash
+mcp-html-skill config --api-url <url> --model <model> --api-key <key>
+```
+
+Examples:
+```bash
+# Local Ollama
+mcp-html-skill config --api-url http://localhost:11434/v1 --model qwen2
+
+# DeepSeek
+mcp-html-skill config --api-url https://api.deepseek.com/v1 --api-key sk-xxx --model deepseek-chat
+
+# Baidu ERNIE
+mcp-html-skill config --api-url https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop --api-key xxx --model ernie-4.0-8k
+```
+
+Check current config:
+```bash
+mcp-html-skill config --show
+```
 
 ## Decision Framework
 
@@ -25,9 +49,9 @@ MCP-HTML-Bridge is a **generic MCP GUI wrapper**. It supports two rendering mode
 
 ### Step 2: Render
 
-Write the JSON data to a temp file, then call the renderer.
+Write the JSON data to a temp file, then call the renderer. LLM config is loaded automatically from `~/.mcp-html-bridge/config.json` — no need to pass `--api-url`/`--api-key`/`--model` unless you want to override.
 
-**With LLM semantic rendering (recommended for rich data):**
+**Standard usage (auto-loads LLM config):**
 ```bash
 cat <<'MCPJSON' > /tmp/mcp-render-input.json
 <THE_JSON_DATA>
@@ -36,17 +60,15 @@ MCPJSON
 mcp-html-skill render \
   --data /tmp/mcp-render-input.json \
   --title "<descriptive title>" \
-  --api-url "https://api.openai.com/v1" \
-  --api-key "$OPENAI_API_KEY" \
-  --model "gpt-4o-mini" \
   --open
 ```
 
-**Without LLM (structural fallback):**
+**Force structural rendering (skip LLM):**
 ```bash
 mcp-html-skill render \
   --data /tmp/mcp-render-input.json \
   --title "<descriptive title>" \
+  --no-llm \
   --open
 ```
 
@@ -69,18 +91,6 @@ After rendering, briefly tell the user:
 - The file path (from command output)
 - What they'll see when they open it
 
-## LLM Providers
-
-The `--api-url` flag accepts any OpenAI-compatible endpoint:
-
-| Provider | API URL |
-|---|---|
-| OpenAI | `https://api.openai.com/v1` |
-| Baidu ERNIE | `https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop` |
-| Anthropic (via proxy) | `https://api.anthropic.com/v1` |
-| Ollama (local) | `http://localhost:11434/v1` |
-| vLLM (local) | `http://localhost:8000/v1` |
-
 ## Options
 
 | Flag | Description |
@@ -93,8 +103,9 @@ The `--api-url` flag accepts any OpenAI-compatible endpoint:
 | `--debug` | Add debug playground panel |
 | `--open` | Auto-open in browser |
 | `--stdout` | Print raw HTML to stdout |
-| `--api-url <url>` | LLM API base URL |
-| `--api-key <key>` | LLM API key |
-| `--model <model>` | LLM model name |
+| `--no-llm` | Force structural rendering, skip LLM |
+| `--api-url <url>` | Override LLM API base URL |
+| `--api-key <key>` | Override LLM API key |
+| `--model <model>` | Override LLM model name |
 
 $ARGUMENTS
