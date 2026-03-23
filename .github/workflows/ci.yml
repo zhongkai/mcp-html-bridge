@@ -65,7 +65,7 @@ jobs:
 
       - name: Publish packages
         run: |
-          for pkg in core-ui-engine core-mcp-client adapter-cli adapter-proxy; do
+          for pkg in core-ui-engine core-mcp-client adapter-cli adapter-proxy claude-skill; do
             cd packages/$pkg
             npm publish --access public --provenance || echo "Skipped $pkg (already published or not authorized)"
             cd ../..
