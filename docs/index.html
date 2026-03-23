@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCP-HTML-Bridge — Universal MCP GUI Wrapper</title>
+<meta name="description" content="Render any MCP tool's JSON data as zero-dependency, self-contained HTML. LLM-powered semantic rendering with structural fallback.">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#fafbfc;--bg-alt:#fff;--bg-code:#f3f4f6;--bg-hero:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#334155 100%);
+  --text:#1e293b;--text-2:#475569;--text-3:#94a3b8;--border:#e2e8f0;
+  --accent:#3b82f6;--accent-hover:#2563eb;--accent-subtle:#eff6ff;
+  --success:#10b981;--warning:#f59e0b;--danger:#ef4444;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono",SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace;
+  --max-w:860px;--radius:8px;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg:#0f172a;--bg-alt:#1e293b;--bg-code:#1e293b;--bg-hero:linear-gradient(135deg,#020617 0%,#0f172a 50%,#1e293b 100%);
+    --text:#e2e8f0;--text-2:#94a3b8;--text-3:#64748b;--border:#334155;
+    --accent:#60a5fa;--accent-hover:#93bbfd;--accent-subtle:#1e3a5f;
+  }
+}
+html{scroll-behavior:smooth;font-size:16px}
+body{font-family:var(--font);color:var(--text);background:var(--bg);line-height:1.7}
+
+/* ── Hero ── */
+.hero{background:var(--bg-hero);color:#f1f5f9;padding:80px 24px 64px;text-align:center}
+.hero h1{font-size:2.5rem;font-weight:800;letter-spacing:-0.03em;margin-bottom:12px}
+.hero h1 span{background:linear-gradient(90deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{font-size:1.15rem;color:#94a3b8;max-width:600px;margin:0 auto 32px}
+.hero-badges{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.hero-badges a{display:inline-block}
+.hero-badges img{height:22px}
+
+/* ── Nav ── */
+.topnav{position:sticky;top:0;z-index:100;background:var(--bg-alt);border-bottom:1px solid var(--border);padding:0 24px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.topnav-inner{max-width:var(--max-w);margin:0 auto;display:flex;align-items:center;gap:24px;height:48px;overflow-x:auto}
+.topnav a{color:var(--text-2);text-decoration:none;font-size:0.82rem;font-weight:500;white-space:nowrap;transition:color .15s}
+.topnav a:hover{color:var(--accent)}
+.topnav .logo{font-weight:700;color:var(--text);font-size:0.9rem;margin-right:auto}
+
+/* ── Layout ── */
+.container{max-width:var(--max-w);margin:0 auto;padding:0 24px}
+section{padding:56px 0;border-bottom:1px solid var(--border)}
+section:last-of-type{border-bottom:none}
+h2{font-size:1.6rem;font-weight:700;margin-bottom:24px;letter-spacing:-0.02em;scroll-margin-top:60px}
+h3{font-size:1.15rem;font-weight:600;margin:28px 0 12px;scroll-margin-top:60px}
+h4{font-size:1rem;font-weight:600;margin:20px 0 8px}
+p{margin-bottom:16px;color:var(--text-2)}
+strong{color:var(--text);font-weight:600}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+ul,ol{margin:0 0 16px 24px;color:var(--text-2)}
+li{margin-bottom:6px}
+
+/* ── Code ── */
+code{font-family:var(--mono);font-size:0.88em;background:var(--bg-code);padding:2px 6px;border-radius:4px}
+pre{background:var(--bg-code);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;overflow-x:auto;margin:0 0 20px;position:relative}
+pre code{background:none;padding:0;font-size:0.84rem;line-height:1.6}
+.code-label{position:absolute;top:8px;right:12px;font-size:0.7rem;color:var(--text-3);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.05em}
+
+/* ── Tables ── */
+table{width:100%;border-collapse:collapse;margin:0 0 20px;font-size:0.9rem}
+th{text-align:left;padding:10px 14px;background:var(--bg-code);border:1px solid var(--border);font-weight:600;color:var(--text);font-size:0.82rem;text-transform:uppercase;letter-spacing:0.03em}
+td{padding:10px 14px;border:1px solid var(--border);color:var(--text-2)}
+tr:nth-child(even){background:var(--bg-code)}
+
+/* ── Cards ── */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin:20px 0}
+.card{background:var(--bg-alt);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px}
+.card h4{margin:0 0 8px;font-size:1rem;color:var(--text)}
+.card p{margin:0;font-size:0.88rem}
+
+/* ── Feature pills ── */
+.features{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:var(--accent-subtle);border:1px solid var(--accent);border-radius:100px;font-size:0.82rem;font-weight:500;color:var(--accent)}
+
+/* ── Callout ── */
+.callout{border-left:4px solid var(--accent);background:var(--accent-subtle);padding:16px 20px;border-radius:0 var(--radius) var(--radius) 0;margin:20px 0;font-size:0.92rem}
+.callout.warn{border-color:var(--warning);background:#fef9c3}
+@media(prefers-color-scheme:dark){.callout.warn{background:#422006}}
+.callout p{margin:0;color:var(--text)}
+
+/* ── Architecture ── */
+.arch{background:var(--bg-code);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin:20px 0;font-family:var(--mono);font-size:0.82rem;line-height:1.8;white-space:pre;overflow-x:auto;color:var(--text-2)}
+
+/* ── Lang toggle ── */
+.lang-toggle{display:flex;gap:0;margin:0 0 32px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;width:fit-content}
+.lang-toggle button{padding:8px 20px;border:none;background:var(--bg-alt);color:var(--text-2);font-size:0.88rem;font-weight:500;cursor:pointer;transition:all .15s}
+.lang-toggle button.active{background:var(--accent);color:#fff}
+.lang-section{display:none}
+.lang-section.active{display:block}
+
+/* ── Footer ── */
+footer{text-align:center;padding:40px 24px;color:var(--text-3);font-size:0.84rem;border-top:1px solid var(--border)}
+footer a{color:var(--text-2)}
+
+/* ── Responsive ── */
+@media(max-width:640px){
+  .hero h1{font-size:1.8rem}
+  .hero p{font-size:1rem}
+  h2{font-size:1.35rem}
+  .topnav-inner{gap:16px}
+}
+</style>
+</head>
+<body>
+
+<!-- Hero -->
+<div class="hero">
+  <h1><span>MCP-HTML-Bridge</span></h1>
+  <p>Render any MCP tool's JSON data as zero-dependency, self-contained HTML. LLM-powered semantic rendering with automatic structural fallback.</p>
+  <div class="hero-badges">
+    <a href="https://www.npmjs.com/package/@mcp-html-bridge/ui-engine"><img src="https://img.shields.io/npm/v/@mcp-html-bridge/ui-engine?style=flat-square&label=npm&color=3b82f6" alt="npm"></a>
+    <a href="https://github.com/zhongkai/mcp-html-bridge"><img src="https://img.shields.io/github/stars/zhongkai/mcp-html-bridge?style=flat-square&color=f59e0b" alt="GitHub"></a>
+    <a href="https://github.com/zhongkai/mcp-html-bridge/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-10b981?style=flat-square" alt="MIT"></a>
+  </div>
+</div>
+
+<!-- Nav -->
+<nav class="topnav">
+  <div class="topnav-inner">
+    <a href="#" class="logo">MCP-HTML-Bridge</a>
+    <a href="#quickstart">Quick Start</a>
+    <a href="#config">Config</a>
+    <a href="#modes">Modes</a>
+    <a href="#api">API</a>
+    <a href="#cli">CLI</a>
+    <a href="#tailwind">Tailwind</a>
+    <a href="#bridge">Bridge</a>
+    <a href="#packages">Packages</a>
+  </div>
+</nav>
+
+<main class="container">
+
+<!-- Lang toggle -->
+<section style="padding-bottom:0;border:none">
+  <div class="lang-toggle">
+    <button class="active" onclick="switchLang('en')">English</button>
+    <button onclick="switchLang('zh')">中文</button>
+  </div>
+</section>
+
+<!-- ==================== ENGLISH ==================== -->
+<div id="lang-en" class="lang-section active">
+
+<section id="quickstart">
+  <h2>Quick Start</h2>
+  <pre><code><span style="color:var(--text-3)"># 1. Install</span>
+npm install -g @mcp-html-bridge/claude-skill
+
+<span style="color:var(--text-3)"># 2. Configure your LLM provider once</span>
+mcp-html-skill config --api-url http://localhost:11434/v1 --model qwen2
+
+<span style="color:var(--text-3)"># 3. Render any JSON</span>
+echo '{"name":"Alice","scores":[98,85,92]}' > /tmp/data.json
+mcp-html-skill render --data /tmp/data.json --open
+
+<span style="color:var(--text-3)"># Or skip LLM, use structural rendering</span>
+mcp-html-skill render --data /tmp/data.json --no-llm --open</code></pre>
+
+  <p>Or without installing:</p>
+  <pre><code>npx @mcp-html-bridge/claude-skill render --data /tmp/data.json --open</code></pre>
+</section>
+
+<section id="config">
+  <h2>LLM Configuration</h2>
+  <p>Configure once, use everywhere. Supports any OpenAI-compatible API.</p>
+
+  <pre><code>mcp-html-skill config --api-url &lt;url&gt; --model &lt;model&gt; [--api-key &lt;key&gt;]</code></pre>
+
+  <h3>Provider Examples</h3>
+  <pre><code><span style="color:var(--text-3)"># Local Ollama (no API key needed)</span>
+mcp-html-skill config --api-url http://localhost:11434/v1 --model qwen2
+
+<span style="color:var(--text-3)"># DeepSeek</span>
+mcp-html-skill config --api-url https://api.deepseek.com/v1 \
+  --api-key sk-xxx --model deepseek-chat
+
+<span style="color:var(--text-3)"># Baidu ERNIE</span>
+mcp-html-skill config \
+  --api-url https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop \
+  --api-key xxx --model ernie-4.0-8k
+
+<span style="color:var(--text-3)"># Any OpenAI-compatible endpoint</span>
+mcp-html-skill config --api-url https://your-api.com/v1 \
+  --api-key xxx --model your-model</code></pre>
+
+  <h3>Manage Config</h3>
+  <pre><code>mcp-html-skill config --show     <span style="color:var(--text-3)"># View current config</span>
+mcp-html-skill config --clear    <span style="color:var(--text-3)"># Clear config</span></code></pre>
+
+  <h3>Resolution Priority</h3>
+  <div class="callout">
+    <p><strong>CLI flags</strong> &gt; <strong>Environment variables</strong> &gt; <strong>Config file</strong> &gt; <strong>No LLM (structural fallback)</strong></p>
+  </div>
+  <p>Environment variables: <code>MCP_HTML_LLM_API_URL</code>, <code>MCP_HTML_LLM_API_KEY</code>, <code>MCP_HTML_LLM_MODEL</code></p>
+  <p>Config file: <code>~/.mcp-html-bridge/config.json</code></p>
+</section>
+
+<section id="modes">
+  <h2>Rendering Modes</h2>
+
+  <div class="card-grid">
+    <div class="card">
+      <h4>LLM Semantic Rendering</h4>
+      <p>The model understands what the data <strong>means</strong> and produces the best HTML. No hardcoded patterns in code. Handles SVGs, markdown, charts, images, code &mdash; anything.</p>
+    </div>
+    <div class="card">
+      <h4>Structural Fallback</h4>
+      <p>When no LLM is configured or <code>--no-llm</code> is used. Maps JSON shapes to HTML mechanically: arrays &rarr; tables, objects &rarr; key-value pairs, deep nesting &rarr; collapsible sections.</p>
+    </div>
+  </div>
+
+  <h3>Structural Mapping</h3>
+  <table>
+    <tr><th>JSON Shape</th><th>Rendered As</th></tr>
+    <tr><td>Array of objects</td><td>Sortable table</td></tr>
+    <tr><td>Flat object</td><td>Key-value pairs</td></tr>
+    <tr><td>Nested object</td><td>Collapsible sections</td></tr>
+    <tr><td>Primitive value</td><td>Inline display</td></tr>
+    <tr><td>Mixed / complex</td><td>Auto-detected composite</td></tr>
+  </table>
+
+  <div class="features">
+    <span class="pill">Auto-link URLs</span>
+    <span class="pill">Embed images</span>
+    <span class="pill">XSS-safe</span>
+    <span class="pill">Heterogeneous arrays</span>
+    <span class="pill">Deep nesting (30 levels)</span>
+    <span class="pill">Graceful LLM fallback</span>
+    <span class="pill">Dark mode</span>
+  </div>
+</section>
+
+<section id="api">
+  <h2>Library API</h2>
+
+  <h3>Async LLM Rendering</h3>
+  <pre><code>import { renderFromData } from '@mcp-html-bridge/ui-engine';
+
+const html = await renderFromData(data, {
+  title: 'API Result',
+  llm: {
+    apiUrl: 'http://localhost:11434/v1',
+    model: 'qwen2',
+  },
+});</code></pre>
+
+  <h3>Sync Structural Rendering</h3>
+  <pre><code>import { renderFromDataSync } from '@mcp-html-bridge/ui-engine';
+
+const html = renderFromDataSync(data, {
+  title: 'API Result',
+});</code></pre>
+
+  <h3>Form from JSON Schema</h3>
+  <pre><code>import { renderFromSchema } from '@mcp-html-bridge/ui-engine';
+
+const html = renderFromSchema({
+  type: 'object',
+  properties: {
+    query: { type: 'string', description: 'Search query' },
+    category: { type: 'string', enum: ['Books', 'Electronics'] },
+    maxPrice: { type: 'number', minimum: 0 },
+    inStock: { type: 'boolean', default: true },
+  },
+  required: ['query'],
+}, {
+  toolName: 'search_products',
+  toolDescription: 'Search the product catalog.',
+});</code></pre>
+
+  <h3>Form Widget Mapping</h3>
+  <table>
+    <tr><th>Schema Type</th><th>Widget</th></tr>
+    <tr><td><code>string</code></td><td>Text input</td></tr>
+    <tr><td><code>string</code> + <code>enum</code></td><td>Capsule radio group</td></tr>
+    <tr><td><code>string</code> + <code>format: "email"</code></td><td>Email input</td></tr>
+    <tr><td><code>string</code> + <code>format: "date"</code></td><td>Date picker</td></tr>
+    <tr><td><code>string</code> + <code>maxLength &gt; 200</code></td><td>Textarea</td></tr>
+    <tr><td><code>number</code> / <code>integer</code></td><td>Number input with min/max</td></tr>
+    <tr><td><code>boolean</code></td><td>Toggle switch</td></tr>
+    <tr><td><code>object</code> + <code>properties</code></td><td>Collapsible nested section</td></tr>
+    <tr><td><code>array</code></td><td>Textarea (JSON input)</td></tr>
+  </table>
+
+  <h3>Unified API</h3>
+  <pre><code>import { render } from '@mcp-html-bridge/ui-engine';
+
+// Data mode
+const html = await render(
+  { mode: 'data', data: myData, toolName: 'my_tool' },
+  { title: 'Result', llm: { apiUrl: '...', model: '...' } }
+);
+
+// Schema mode
+const form = await render(
+  { mode: 'schema', schema: toolSchema, toolName: 'my_tool' },
+  { title: 'Input Form' }
+);</code></pre>
+</section>
+
+<section id="cli">
+  <h2>CLI Usage</h2>
+
+  <pre><code><span style="color:var(--text-3)"># Render with LLM (auto-loads config)</span>
+mcp-html-skill render --data result.json --open
+
+<span style="color:var(--text-3)"># Override LLM for this call</span>
+mcp-html-skill render --data result.json \
+  --api-url http://localhost:11434/v1 --model llama3 --open
+
+<span style="color:var(--text-3)"># Force structural, no LLM</span>
+mcp-html-skill render --data result.json --no-llm --open
+
+<span style="color:var(--text-3)"># Schema → interactive form</span>
+mcp-html-skill render --schema tool-schema.json --open
+
+<span style="color:var(--text-3)"># Inline JSON</span>
+mcp-html-skill render --json '{"users":[{"name":"Alice"}]}' --open
+
+<span style="color:var(--text-3)"># Stdout mode</span>
+mcp-html-skill render --data result.json --stdout > output.html</code></pre>
+
+  <h3>All Options</h3>
+  <table>
+    <tr><th>Flag</th><th>Description</th></tr>
+    <tr><td><code>--data &lt;file&gt;</code></td><td>Input JSON data file</td></tr>
+    <tr><td><code>--schema &lt;file&gt;</code></td><td>Input JSON Schema (renders as form)</td></tr>
+    <tr><td><code>--json &lt;string&gt;</code></td><td>Inline JSON string</td></tr>
+    <tr><td><code>--title &lt;title&gt;</code></td><td>Page title</td></tr>
+    <tr><td><code>--tool-name &lt;name&gt;</code></td><td>Tool name</td></tr>
+    <tr><td><code>--debug</code></td><td>Add debug playground panel</td></tr>
+    <tr><td><code>--open</code></td><td>Auto-open in browser</td></tr>
+    <tr><td><code>--stdout</code></td><td>Print raw HTML to stdout</td></tr>
+    <tr><td><code>--no-llm</code></td><td>Force structural rendering</td></tr>
+    <tr><td><code>--api-url</code></td><td>Override LLM API URL</td></tr>
+    <tr><td><code>--api-key</code></td><td>Override LLM API key</td></tr>
+    <tr><td><code>--model</code></td><td>Override LLM model</td></tr>
+  </table>
+
+  <h3>Claude Code Integration</h3>
+  <pre><code><span style="color:var(--text-3)"># Install /mcp-render command</span>
+mcp-html-skill install
+
+<span style="color:var(--text-3)"># Then use in any Claude Code conversation:</span>
+/mcp-render</code></pre>
+</section>
+
+<section id="tailwind">
+  <h2>Tailwind Utility Classes</h2>
+  <p>Every generated HTML page includes Tailwind-compatible atomic utility classes mapped to the CSS variable theme system. Both LLM and hand-written HTML can use them.</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <h4>Layout</h4>
+      <p><code>flex</code> <code>grid</code> <code>block</code> <code>hidden</code> <code>flex-col</code> <code>flex-wrap</code> <code>grid-cols-1</code>~<code>4</code></p>
+    </div>
+    <div class="card">
+      <h4>Alignment</h4>
+      <p><code>items-center</code> <code>justify-between</code> <code>justify-center</code> <code>self-center</code> <code>shrink-0</code> <code>grow</code></p>
+    </div>
+    <div class="card">
+      <h4>Spacing</h4>
+      <p><code>gap-1</code>~<code>8</code> <code>p-0</code>~<code>8</code> <code>px-*</code> <code>py-*</code> <code>m-*</code> <code>mt-*</code> <code>mb-*</code> <code>mx-auto</code></p>
+    </div>
+    <div class="card">
+      <h4>Typography</h4>
+      <p><code>text-xs</code>~<code>3xl</code> <code>font-bold</code> <code>font-mono</code> <code>text-center</code> <code>truncate</code> <code>uppercase</code></p>
+    </div>
+    <div class="card">
+      <h4>Colors</h4>
+      <p><code>text-primary</code> <code>text-secondary</code> <code>bg-primary</code> <code>bg-elevated</code> <code>bg-accent-subtle</code> <code>bg-success-subtle</code></p>
+    </div>
+    <div class="card">
+      <h4>Borders & Effects</h4>
+      <p><code>border</code> <code>border-t</code> <code>rounded-lg</code> <code>shadow-md</code> <code>overflow-hidden</code> <code>transition</code></p>
+    </div>
+  </div>
+
+  <h3>Responsive Prefixes</h3>
+  <pre><code><span style="color:var(--text-3)">/* sm: (min-width: 640px) */</span>
+sm:grid-cols-2  sm:flex-row  sm:text-lg  sm:p-6
+
+<span style="color:var(--text-3)">/* md: (min-width: 768px) */</span>
+md:grid-cols-3  md:grid-cols-4  md:flex-row  md:text-2xl  md:p-8</code></pre>
+</section>
+
+<section id="bridge">
+  <h2>Bridge Protocol</h2>
+  <p>Every generated page includes a bridge script for bidirectional iframe communication.</p>
+
+  <h3>Inside the HTML (auto-included)</h3>
+  <pre><code>__mcpBridge.callTool('search_products', { query: 'laptop' });
+
+__mcpBridge.onResult(function(data) {
+  console.log('Got result:', data);
+});</code></pre>
+
+  <h3>From the Parent Frame</h3>
+  <pre><code>window.addEventListener('message', (evt) => {
+  if (evt.data?.type === 'MCP_TOOL_CALL') {
+    const { toolName, arguments: args } = evt.data;
+    iframe.contentWindow.postMessage({
+      type: 'MCP_RESULT', data: result
+    }, '*');
+  }
+});
+
+<span style="color:var(--text-3)">// Auto-resize</span>
+window.addEventListener('message', (evt) => {
+  if (evt.data?.type === 'MCP_RESIZE') {
+    iframe.style.height = evt.data.height + 'px';
+  }
+});</code></pre>
+</section>
+
+<section>
+  <h2>Architecture</h2>
+<div class="arch">JSON Data
+  │
+  ├─ LLM configured → JSON + prompt → Model → Semantic HTML
+  │
+  └─ No LLM        → JSON shape → Structural HTML
+  │
+  ▼
+Theme CSS + Utility CSS + Bridge JS → Self-contained HTML file</div>
+</section>
+
+<section>
+  <h2>Proxy Mode</h2>
+  <p>The proxy transparently forwards all MCP messages while appending rendered HTML to tool results.</p>
+  <pre><code>npx @mcp-html-bridge/proxy "npx -y @modelcontextprotocol/server-filesystem /tmp"</code></pre>
+  <pre><code>{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@mcp-html-bridge/proxy",
+               "npx -y @modelcontextprotocol/server-filesystem /tmp"]
+    }
+  }
+}</code></pre>
+</section>
+
+<section id="packages">
+  <h2>Packages</h2>
+  <table>
+    <tr><th>Package</th><th>Description</th></tr>
+    <tr><td><code>@mcp-html-bridge/ui-engine</code></td><td>Core engine (LLM renderer + structural fallback + Tailwind utilities)</td></tr>
+    <tr><td><code>@mcp-html-bridge/claude-skill</code></td><td>Claude Code integration (CLI + <code>/mcp-render</code> command)</td></tr>
+    <tr><td><code>@mcp-html-bridge/mcp-client</code></td><td>Lightweight MCP stdio client</td></tr>
+    <tr><td><code>@mcp-html-bridge/cli</code></td><td>CLI adapter (<code>mcp-bridge</code> command)</td></tr>
+    <tr><td><code>@mcp-html-bridge/proxy</code></td><td>MCP proxy server</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>Recipes</h2>
+
+  <h3>Embed in React (sync)</h3>
+  <pre><code>import { renderFromDataSync } from '@mcp-html-bridge/ui-engine';
+
+function MCPViewer({ data }) {
+  const html = useMemo(() =&gt; renderFromDataSync(data), [data]);
+  return &lt;iframe srcDoc={html} sandbox="allow-scripts"
+           style={{ width: '100%', border: 'none' }} /&gt;;
+}</code></pre>
+
+  <h3>Embed in React (async LLM)</h3>
+  <pre><code>import { renderFromData } from '@mcp-html-bridge/ui-engine';
+
+function MCPViewer({ data }) {
+  const [html, setHtml] = useState('');
+  useEffect(() =&gt; {
+    renderFromData(data, {
+      llm: { apiUrl: 'http://localhost:11434/v1', model: 'qwen2' },
+    }).then(setHtml);
+  }, [data]);
+
+  if (!html) return &lt;div&gt;Rendering...&lt;/div&gt;;
+  return &lt;iframe srcDoc={html} sandbox="allow-scripts"
+           style={{ width: '100%', border: 'none' }} /&gt;;
+}</code></pre>
+
+  <h3>Batch Render with Custom LLM</h3>
+  <pre><code>import { renderFromData } from '@mcp-html-bridge/ui-engine';
+import { writeFileSync } from 'fs';
+
+const llm = {
+  apiUrl: 'https://api.deepseek.com/v1',
+  apiKey: process.env.DEEPSEEK_KEY,
+  model: 'deepseek-chat',
+};
+
+async function renderAll(datasets) {
+  for (const [name, data] of Object.entries(datasets)) {
+    const html = await renderFromData(data, { title: name, llm });
+    writeFileSync(`/tmp/mcp-html-bridge/${name}.html`, html);
+  }
+}</code></pre>
+</section>
+
+</div><!-- /lang-en -->
+
+<!-- ==================== CHINESE ==================== -->
+<div id="lang-zh" class="lang-section">
+
+<section>
+  <h2>快速开始</h2>
+  <pre><code><span style="color:var(--text-3)"># 1. 安装</span>
+npm install -g @mcp-html-bridge/claude-skill
+
+<span style="color:var(--text-3)"># 2. 配置一次 LLM（任何 OpenAI 兼容 API）</span>
+mcp-html-skill config --api-url http://localhost:11434/v1 --model qwen2
+
+<span style="color:var(--text-3)"># 3. 渲染任意 JSON</span>
+echo '{"name":"Alice","scores":[98,85,92]}' > /tmp/data.json
+mcp-html-skill render --data /tmp/data.json --open
+
+<span style="color:var(--text-3)"># 跳过 LLM，纯结构化渲染</span>
+mcp-html-skill render --data /tmp/data.json --no-llm --open</code></pre>
+</section>
+
+<section>
+  <h2>LLM 配置</h2>
+  <p>配置一次，处处可用。支持任何 OpenAI 兼容 API。</p>
+
+  <pre><code>mcp-html-skill config --api-url &lt;url&gt; --model &lt;model&gt; [--api-key &lt;key&gt;]</code></pre>
+
+  <h3>示例</h3>
+  <pre><code><span style="color:var(--text-3)"># 本地 Ollama（不需要 API key）</span>
+mcp-html-skill config --api-url http://localhost:11434/v1 --model qwen2
+
+<span style="color:var(--text-3)"># DeepSeek</span>
+mcp-html-skill config --api-url https://api.deepseek.com/v1 \
+  --api-key sk-xxx --model deepseek-chat
+
+<span style="color:var(--text-3)"># 百度文心</span>
+mcp-html-skill config \
+  --api-url https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop \
+  --api-key xxx --model ernie-4.0-8k</code></pre>
+
+  <h3>管理配置</h3>
+  <pre><code>mcp-html-skill config --show     <span style="color:var(--text-3)"># 查看当前配置</span>
+mcp-html-skill config --clear    <span style="color:var(--text-3)"># 清除配置</span></code></pre>
+
+  <h3>配置优先级</h3>
+  <div class="callout">
+    <p><strong>CLI 参数</strong> &gt; <strong>环境变量</strong> &gt; <strong>配置文件</strong> &gt; <strong>无 LLM（结构化兜底）</strong></p>
+  </div>
+  <p>环境变量：<code>MCP_HTML_LLM_API_URL</code>、<code>MCP_HTML_LLM_API_KEY</code>、<code>MCP_HTML_LLM_MODEL</code></p>
+  <p>配置文件位置：<code>~/.mcp-html-bridge/config.json</code></p>
+</section>
+
+<section>
+  <h2>渲染模式</h2>
+  <div class="card-grid">
+    <div class="card">
+      <h4>LLM 语义渲染（推荐）</h4>
+      <p>模型接收 JSON 数据，理解数据的<strong>语义</strong>，自己决定最佳的渲染方式。代码里不做任何模式匹配。SVG、markdown、表格、图表、代码、图片 — 全部由模型自行判断。</p>
+    </div>
+    <div class="card">
+      <h4>结构化兜底</h4>
+      <p>没配 LLM 或使用 <code>--no-llm</code> 时，按 JSON 形状机械映射：数组 &rarr; 表格，对象 &rarr; 键值对，深层嵌套 &rarr; 可折叠区域。</p>
+    </div>
+  </div>
+
+  <table>
+    <tr><th>JSON 形状</th><th>渲染方式</th></tr>
+    <tr><td>对象数组</td><td>可排序表格</td></tr>
+    <tr><td>扁平对象</td><td>键值对</td></tr>
+    <tr><td>嵌套对象</td><td>可折叠区域</td></tr>
+    <tr><td>原始值</td><td>内联显示</td></tr>
+    <tr><td>混合/复杂</td><td>自动检测复合布局</td></tr>
+  </table>
+
+  <div class="features">
+    <span class="pill">自动链接 URL</span>
+    <span class="pill">嵌入图片</span>
+    <span class="pill">XSS 安全</span>
+    <span class="pill">异构数组</span>
+    <span class="pill">深层嵌套 (30 层)</span>
+    <span class="pill">LLM 优雅降级</span>
+    <span class="pill">暗色模式</span>
+  </div>
+</section>
+
+<section>
+  <h2>库 API</h2>
+
+  <h3>异步 LLM 渲染</h3>
+  <pre><code>import { renderFromData } from '@mcp-html-bridge/ui-engine';
+
+const html = await renderFromData(data, {
+  title: '结果',
+  llm: { apiUrl: 'http://localhost:11434/v1', model: 'qwen2' },
+});</code></pre>
+
+  <h3>同步结构化渲染（无 LLM，无网络）</h3>
+  <pre><code>import { renderFromDataSync } from '@mcp-html-bridge/ui-engine';
+
+const html = renderFromDataSync(data, { title: '结果' });</code></pre>
+
+  <h3>从 JSON Schema 渲染表单</h3>
+  <pre><code>import { renderFromSchema } from '@mcp-html-bridge/ui-engine';
+
+const html = renderFromSchema({
+  type: 'object',
+  properties: {
+    query: { type: 'string', description: '搜索关键词' },
+    category: { type: 'string', enum: ['图书', '电子产品', '服装'] },
+  },
+  required: ['query'],
+}, { toolName: 'search_products' });</code></pre>
+</section>
+
+<section>
+  <h2>CLI 使用</h2>
+  <pre><code><span style="color:var(--text-3)"># 使用 LLM 渲染（自动读取配置）</span>
+mcp-html-skill render --data result.json --open
+
+<span style="color:var(--text-3)"># 强制结构化渲染</span>
+mcp-html-skill render --data result.json --no-llm --open
+
+<span style="color:var(--text-3)"># Schema → 交互式表单</span>
+mcp-html-skill render --schema tool-schema.json --open</code></pre>
+
+  <h3>完整参数</h3>
+  <table>
+    <tr><th>参数</th><th>说明</th></tr>
+    <tr><td><code>--data &lt;file&gt;</code></td><td>JSON 数据文件</td></tr>
+    <tr><td><code>--schema &lt;file&gt;</code></td><td>JSON Schema（渲染为表单）</td></tr>
+    <tr><td><code>--json &lt;string&gt;</code></td><td>内联 JSON 字符串</td></tr>
+    <tr><td><code>--title &lt;title&gt;</code></td><td>页面标题</td></tr>
+    <tr><td><code>--debug</code></td><td>添加调试面板</td></tr>
+    <tr><td><code>--open</code></td><td>自动在浏览器打开</td></tr>
+    <tr><td><code>--stdout</code></td><td>输出到 stdout</td></tr>
+    <tr><td><code>--no-llm</code></td><td>跳过 LLM</td></tr>
+    <tr><td><code>--api-url</code></td><td>覆盖 LLM API 地址</td></tr>
+    <tr><td><code>--api-key</code></td><td>覆盖 LLM API Key</td></tr>
+    <tr><td><code>--model</code></td><td>覆盖 LLM 模型</td></tr>
+  </table>
+
+  <h3>Claude Code 集成</h3>
+  <pre><code><span style="color:var(--text-3)"># 安装 /mcp-render 命令</span>
+mcp-html-skill install
+
+<span style="color:var(--text-3)"># 在 Claude Code 对话中使用</span>
+/mcp-render</code></pre>
+</section>
+
+<section>
+  <h2>Tailwind 原子化样式</h2>
+  <p>每个生成的 HTML 页面都自动包含 Tailwind 兼容的原子化样式类，映射到 CSS 变量主题系统。</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <h4>布局</h4>
+      <p><code>flex</code> <code>grid</code> <code>block</code> <code>hidden</code> <code>flex-col</code> <code>grid-cols-1</code>~<code>4</code></p>
+    </div>
+    <div class="card">
+      <h4>间距</h4>
+      <p><code>gap-1</code>~<code>8</code> <code>p-0</code>~<code>8</code> <code>px-*</code> <code>py-*</code> <code>m-*</code> <code>mx-auto</code></p>
+    </div>
+    <div class="card">
+      <h4>文字</h4>
+      <p><code>text-xs</code>~<code>3xl</code> <code>font-bold</code> <code>font-mono</code> <code>text-center</code> <code>truncate</code></p>
+    </div>
+    <div class="card">
+      <h4>颜色 & 边框</h4>
+      <p><code>text-primary</code> <code>bg-elevated</code> <code>border</code> <code>rounded-lg</code> <code>shadow-md</code></p>
+    </div>
+  </div>
+
+  <h3>响应式前缀</h3>
+  <pre><code>sm:grid-cols-2  sm:flex-row  sm:text-lg  sm:p-6    <span style="color:var(--text-3)">/* ≥640px */</span>
+md:grid-cols-3  md:flex-row  md:text-2xl  md:p-8    <span style="color:var(--text-3)">/* ≥768px */</span></code></pre>
+</section>
+
+<section>
+  <h2>包一览</h2>
+  <table>
+    <tr><th>包名</th><th>说明</th></tr>
+    <tr><td><code>@mcp-html-bridge/ui-engine</code></td><td>核心引擎（LLM 渲染 + 结构化兜底 + Tailwind 工具类）</td></tr>
+    <tr><td><code>@mcp-html-bridge/claude-skill</code></td><td>Claude Code 集成（CLI + <code>/mcp-render</code> 命令）</td></tr>
+    <tr><td><code>@mcp-html-bridge/mcp-client</code></td><td>轻量 MCP stdio 客户端</td></tr>
+    <tr><td><code>@mcp-html-bridge/cli</code></td><td>CLI 适配器（<code>mcp-bridge</code> 命令）</td></tr>
+    <tr><td><code>@mcp-html-bridge/proxy</code></td><td>MCP 代理服务器</td></tr>
+  </table>
+</section>
+
+</div><!-- /lang-zh -->
+
+</main>
+
+<footer>
+  <p>MIT License &middot; <a href="https://github.com/zhongkai/mcp-html-bridge">GitHub</a> &middot; <a href="https://www.npmjs.com/org/mcp-html-bridge">npm</a></p>
+</footer>
+
+<script>
+function switchLang(lang) {
+  document.querySelectorAll('.lang-section').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.lang-toggle button').forEach(el => el.classList.remove('active'));
+  document.getElementById('lang-' + lang).classList.add('active');
+  document.querySelector('.lang-toggle button' + (lang === 'en' ? ':first-child' : ':last-child')).classList.add('active');
+}
+</script>
+</body>
+</html>

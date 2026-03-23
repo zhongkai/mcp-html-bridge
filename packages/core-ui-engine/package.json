@@ -1,6 +1,6 @@
 {
   "name": "@mcp-html-bridge/ui-engine",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Core UI rendering engine — schema/data → self-contained HTML",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
