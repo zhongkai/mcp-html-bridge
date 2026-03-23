@@ -1,9 +1,12 @@
 {
   "name": "@mcp-html-bridge/proxy",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "MCP proxy that intercepts & enhances responses with HTML UI",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": [
+    "dist/"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist"

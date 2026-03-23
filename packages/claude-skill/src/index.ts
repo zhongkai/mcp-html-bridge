@@ -17,7 +17,7 @@ const program = new Command();
 program
   .name('mcp-html-skill')
   .description('MCP-HTML-Bridge — render any JSON as self-contained HTML')
-  .version('0.5.1');
+  .version('0.5.2');
 
 program
   .command('config')

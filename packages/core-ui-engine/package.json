@@ -1,6 +1,6 @@
 {
   "name": "@mcp-html-bridge/ui-engine",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Core UI rendering engine — schema/data → self-contained HTML",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -10,6 +10,9 @@
       "default": "./dist/index.js"
     }
   },
+  "files": [
+    "dist/"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist"

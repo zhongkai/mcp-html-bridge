@@ -1,12 +1,15 @@
 {
   "name": "@mcp-html-bridge/cli",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "CLI adapter for MCP-HTML-Bridge",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
     "mcp-bridge": "./dist/index.js"
   },
+  "files": [
+    "dist/"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist"

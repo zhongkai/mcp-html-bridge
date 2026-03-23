@@ -1,6 +1,6 @@
 {
   "name": "mcp-html-bridge",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "private": true,
   "description": "Universal MCP rendering middleware — schema/data → self-contained HTML UI",
   "workspaces": [
